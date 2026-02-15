@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WH Pro Scanner</title>
+    <title>Warehouse Pro Scanner</title>
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -15,18 +15,18 @@
         * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 10px; }
         
-        /* Stats & Header */
+        /* Header & Stats Display */
         .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; }
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         .stat-card { background: var(--card); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #333; }
         .stat-val { display: block; font-size: 24px; font-weight: bold; color: var(--primary); }
         .stat-label { font-size: 11px; text-transform: uppercase; opacity: 0.6; }
 
-        /* Scanner Display */
+        /* Scanner Interface */
         #reader { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 2px solid #333; }
         #result { background: var(--card); min-height: 90px; margin: 15px 0; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border: 1px solid #333; transition: 0.3s; padding: 10px; }
 
-        /* Professional Buttons */
+        /* Touch-Optimized Controls */
         .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         button { border: none; border-radius: 12px; font-weight: bold; cursor: pointer; padding: 18px; transition: 0.2s; color: white; }
         .btn-main { grid-column: span 2; background: var(--primary); font-size: 18px; }
@@ -34,7 +34,6 @@
         .btn-excel { background: var(--success); font-size: 14px; }
         .btn-clear { grid-column: span 2; background: transparent; color: #666; font-size: 12px; margin-top: 5px; }
 
-        /* Sync Status */
         #syncIndicator { text-align: center; font-size: 12px; margin-bottom: 8px; color: var(--success); height: 15px; }
 
         /* Search & Data Table */
@@ -48,7 +47,7 @@
 <body>
 
     <div class="header">
-        <h2 style="font-size: 18px;">WH PRO SCANNER</h2>
+        <h2 style="font-size: 18px;">WH PRO v3.0</h2>
         <div id="syncIndicator"></div>
     </div>
 
@@ -62,12 +61,12 @@
 
     <div class="controls">
         <button id="camBtn" class="btn-main" onclick="toggleCamera()">🔘 START CAMERA</button>
-        <button class="btn-torch" onclick="toggleTorch()">🔦 FLASHLIGHT</button>
-        <button class="btn-excel" onclick="downloadExcel()">📊 EXPORT EXCEL</button>
+        <button class="btn-torch" onclick="toggleTorch()">🔦 LIGHT</button>
+        <button class="btn-excel" onclick="downloadExcel()">📊 DOWNLOAD CSV</button>
         <button class="btn-clear" onclick="clearSession()">🗑️ RESET LOCAL LIST</button>
     </div>
 
-    <input type="text" class="search-box" id="tableSearch" placeholder="🔍 Search SKU or Batch..." onkeyup="filterTable()">
+    <input type="text" class="search-box" id="tableSearch" placeholder="🔍 Find SKU or Batch..." onkeyup="filterTable()">
 
     <div class="table-container">
         <table>
@@ -82,8 +81,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <script>
-const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbxEyTryEWI6bNqWredx3a_k5yh8ByzWrZZVorGYKyne2_RjlOeDr670TuYTu1wPoFWC/exec
-;
+// YOUR UPDATED GOOGLE SCRIPT URL
+const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbxEyTryEWI6bNqWredx3a_k5yh8ByzWrZZVorGYKyne2_RjlOeDr670TuYTu1wPoFWC/exec";
+
 let scans = {}, processedUIDs = new Set(), isScanning = false, audioCtx = null, torchOn = false;
 let skuMapping = JSON.parse(document.getElementById('skuInput').value);
 let syncQueue = JSON.parse(localStorage.getItem('syncQueue')) || [];
@@ -109,10 +109,10 @@ async function syncToGoogle(data) {
             status.innerText = `⏳ Uploading ${syncQueue.length} items...`;
             await fetch(GOOGLE_URL, {method:"POST", mode:"no-cors", body:JSON.stringify(syncQueue[0])});
             syncQueue.shift(); localStorage.setItem('syncQueue', JSON.stringify(syncQueue));
-        } catch(e) { status.innerText = "❌ Offline - Data Saved"; break; }
+        } catch(e) { status.innerText = "❌ Offline - Saved locally"; break; }
     }
     window.isSyncing = false;
-    if(syncQueue.length === 0) status.innerText = "✅ Cloud Synced";
+    if(syncQueue.length === 0) status.innerText = "✅ Cloud Sync Active";
 }
 
 async function toggleCamera() {
@@ -137,15 +137,20 @@ async function toggleCamera() {
         })(text);
         if(!p) return;
 
+        // Visual Success Feedback
         resEl.innerHTML = "<span style='color:var(--success); font-size:20px;'>✅ SCANNED SUCCESSFULLY</span>";
         playBeep(880, 100);
         
         processedUIDs.add(text);
         let key = `${p.skuName}-${p.batch}`;
         scans[key] = scans[key] || {name:p.skuName, batch:p.batch, count:0};
-        scans[key].count++; updateUI(); syncToGoogle(p);
+        scans[key].count++; 
+        updateUI(); 
+        syncToGoogle(p);
 
-        setTimeout(() => { if(isScanning) resEl.innerHTML = `<span style='font-size:22px; color:var(--primary)'>${p.skuName}</span><br><span style='font-size:14px; opacity:0.7'>${p.batch}</span>`; }, 800);
+        setTimeout(() => { 
+            if(isScanning) resEl.innerHTML = `<span style='font-size:22px; color:var(--primary)'>${p.skuName}</span><br><span style='font-size:14px; opacity:0.7'>${p.batch}</span>`; 
+        }, 800);
     });
     isScanning = true; 
     document.getElementById('camBtn').innerText = "⏹️ STOP CAMERA";
@@ -156,7 +161,7 @@ function toggleTorch() {
     if (!isScanning) return alert("Start camera first!");
     torchOn = !torchOn;
     html5QrCode.applyVideoConstraints({ advanced: [{ torch: torchOn }] })
-    .catch(() => alert("Torch not supported on this browser/device"));
+    .catch(() => alert("Torch/Light not supported on this device"));
 }
 
 function updateUI() {
@@ -176,13 +181,15 @@ function filterTable() {
 
 function downloadExcel() {
     let d = [["SKU", "Batch", "Qty"]]; Object.values(scans).forEach(i=>d.push([i.name,i.batch,i.count]));
-    XLSX.writeFile(XLSX.utils.book_append_sheet(XLSX.utils.book_new(), XLSX.utils.aoa_to_sheet(d), "WH_Scan"), "Report.xlsx");
+    XLSX.writeFile(XLSX.utils.book_append_sheet(XLSX.utils.book_new(), XLSX.utils.aoa_to_sheet(d), "WH_Daily_Report"), "Scan_Data.xlsx");
 }
 
-function clearSession() { if(confirm("Clear local list? (Data in Sheets stays safe)")) { scans={}; processedUIDs.clear(); updateUI(); } }
+function clearSession() { 
+    if(confirm("Clear local view? (Cloud data remains safe)")) { 
+        scans={}; processedUIDs.clear(); updateUI(); document.getElementById('result').innerText="Ready"; 
+    } 
+}
 setInterval(()=> { if(syncQueue.length > 0 && !window.isSyncing) syncToGoogle(null); }, 15000);
 </script>
 </body>
 </html>
-
-
