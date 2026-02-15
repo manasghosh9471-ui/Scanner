@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v4.5</title>
+    <title>Warehouse Pro v4.7</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, sans-serif; }
@@ -61,11 +61,10 @@
         <button class="nav-item" id="navPut" onclick="showTab('putaway')"><span>📥</span><span>PUTAWAY</span></button>
     </div>
 
-<textarea id="skuInput" style="display:none;">{"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH"}</textarea>
+<textarea id="skuInput" style="display:none;">{"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH","1160W1799GNN":"EXN","1160W1799GPP":"EXP","1160W1799GQQ":"EXQ"}</textarea>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script>
-// --- CONFIGURATION ---
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycby6lYCgFNMBky5TLxukv7GQ-PC45wCmaNNOcm8kE9mL4SoooplGfLKYXr7FMupD3iFQ9A/exec"; 
 
 let html5QrCode, isScanning = false, isProcessing = false;
@@ -95,25 +94,19 @@ function updateSyncUI() {
 async function processQueue() {
     if (!navigator.onLine || queue.length === 0 || isProcessing) return;
     isProcessing = true;
-    
     const item = queue[0];
-    
     try {
-        // We use 'no-cors' for Google Scripts, but we won't wait for a response body
         await fetch(GOOGLE_URL, {
             method: "POST",
             mode: "no-cors",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(item)
         });
-        
-        // Success assumption: If fetch didn't crash, it sent.
         queue.shift(); 
         saveState();
     } catch (e) {
         console.error("Fetch failed");
     }
-    
     isProcessing = false;
     if(queue.length > 0) setTimeout(processQueue, 1000);
 }
@@ -139,10 +132,8 @@ async function toggleCamera(divId, resId, isPutaway) {
             alert("⚠️ DUPLICATE SCAN BLOCKED");
             return;
         }
-
         let p = parseQR(text);
         if(!p) return;
-
         if(isPutaway) {
             activePutawayData = p;
             document.getElementById(resId).innerHTML = `<h3>${p.skuName}</h3><p>${p.batch}</p>`;
@@ -190,14 +181,14 @@ function cancelPutaway() {
 function clearSession() { if(confirm("Reset list and duplicates?")) { processedUIDs.clear(); document.getElementById('scanTableBody').innerHTML = ""; saveState(); } }
 
 function downloadCSV() {
-    let csv = "SKU,Batch\n";
+    let csv = "SKU Name,Batch Number,Total Cases\n";
     document.querySelectorAll('#scanTableBody tr').forEach(tr => {
         let cells = tr.querySelectorAll('td');
-        csv += `${cells[0].innerText},${cells[1].innerText}\n`;
+        csv += `${cells[0].innerText},${cells[1].innerText},1\n`;
     });
     const blob = new Blob([csv], {type:'text/csv'});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'Log.csv'; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = 'Warehouse_Log.csv'; a.click();
 }
 
 window.addEventListener('online', updateSyncUI);
