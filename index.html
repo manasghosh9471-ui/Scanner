@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v4.4</title>
+    <title>Warehouse Pro v4.5</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, sans-serif; }
@@ -13,7 +13,7 @@
         .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #1E1E1E; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #333; height: 75px; z-index: 1000; }
         .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #666; font-size: 12px; border: none; background: none; }
         .nav-item.active { color: var(--primary); font-weight: bold; }
-        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; min-height: 80px; display: flex; flex-direction:column; align-items: center; justify-content: center; }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; min-height: 80px; display: flex; justify-content: center; align-items: center; }
         #reader, #readerPutaway { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 1px solid #333; }
         .btn { border: none; border-radius: 10px; padding: 16px; font-weight: bold; color: white; cursor: pointer; width: 100%; font-size: 14px; margin-top: 8px; }
         .btn-main { background: var(--primary); }
@@ -21,20 +21,19 @@
         .btn-danger { background: var(--danger); }
         input { width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; font-size: 24px; margin: 15px 0; text-align: center; }
         #syncStatus { background: #1a1a1a; padding: 8px; border-radius: 20px; font-size: 11px; margin-bottom: 10px; text-align: center; border: 1px solid #333; }
-        .online { color: var(--success); border-color: var(--success) !important; }
-        .offline { color: var(--danger); border-color: var(--danger) !important; }
-        .duplicate-flash { background: rgba(255, 59, 48, 0.4) !important; border: 2px solid var(--danger) !important; }
+        .online { color: var(--success); }
+        .offline { color: var(--danger); }
         table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
         td { padding: 10px; border-top: 1px solid #333; }
     </style>
 </head>
 <body>
 
-    <div id="syncStatus">● INITIALIZING...</div>
+    <div id="syncStatus">● CHECKING CONNECTION...</div>
 
     <div id="scanTab" class="tab-content active-tab">
         <div id="reader"></div>
-        <div class="card" id="result" style="margin-top:10px;">READY TO SCAN</div>
+        <div class="card" id="result">READY TO SCAN</div>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
             <button id="camBtn" class="btn btn-main" style="grid-column: span 2;" onclick="toggleCamera('reader', 'result', false)">🔘 START CAMERA</button>
             <button class="btn btn-excel" onclick="downloadCSV()">📊 CSV</button>
@@ -67,7 +66,7 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script>
 // --- CONFIGURATION ---
-const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbzje-F-YxBO87cEySqTBrjjAYBcaDSAWY1Jqa8BQxar0CaViZTqz_t1bom-xUlPxkKW9g/exec"; 
+const GOOGLE_URL = "https://script.google.com/macros/s/AKfycby6lYCgFNMBky5TLxukv7GQ-PC45wCmaNNOcm8kE9mL4SoooplGfLKYXr7FMupD3iFQ9A/exec"; 
 
 let html5QrCode, isScanning = false, isProcessing = false;
 let queue = JSON.parse(localStorage.getItem('scanQueue')) || [];
@@ -75,7 +74,6 @@ let processedUIDs = new Set(JSON.parse(localStorage.getItem('sessionIDs')) || []
 let skuMapping = JSON.parse(document.getElementById('skuInput').value);
 let activePutawayData = null;
 
-// --- PERSISTENCE & SYNC ---
 function saveState() {
     localStorage.setItem('scanQueue', JSON.stringify(queue));
     localStorage.setItem('sessionIDs', JSON.stringify([...processedUIDs]));
@@ -84,13 +82,12 @@ function saveState() {
 
 function updateSyncUI() {
     const status = document.getElementById('syncStatus');
-    const pending = queue.length;
     if (navigator.onLine) {
-        status.innerHTML = `● ONLINE: ${pending} PENDING SYNC`;
+        status.innerHTML = `● ONLINE (${queue.length} PENDING)`;
         status.className = "online";
-        if (pending > 0 && !isProcessing) processQueue();
+        if (queue.length > 0 && !isProcessing) processQueue();
     } else {
-        status.innerHTML = `● OFFLINE: ${pending} SAVED LOCALLY`;
+        status.innerHTML = `● OFFLINE (${queue.length} SAVED)`;
         status.className = "offline";
     }
 }
@@ -101,28 +98,26 @@ async function processQueue() {
     
     const item = queue[0];
     
-    // Improved Fetch for Google Scripts
     try {
+        // We use 'no-cors' for Google Scripts, but we won't wait for a response body
         await fetch(GOOGLE_URL, {
             method: "POST",
             mode: "no-cors",
-            cache: "no-cache",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(item)
         });
         
-        // Since no-cors doesn't return status, we assume success if no crash
+        // Success assumption: If fetch didn't crash, it sent.
         queue.shift(); 
         saveState();
     } catch (e) {
-        console.error("Network error, will retry...");
+        console.error("Fetch failed");
     }
     
     isProcessing = false;
     if(queue.length > 0) setTimeout(processQueue, 1000);
 }
 
-// --- TABS & NAVIGATION ---
 function showTab(tab) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active-tab'));
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -136,18 +131,12 @@ function showTab(tab) {
     if(isScanning) { html5QrCode.stop(); isScanning = false; }
 }
 
-// --- CORE SCANNING ---
 async function toggleCamera(divId, resId, isPutaway) {
     if(isScanning) { await html5QrCode.stop(); isScanning = false; return; }
     html5QrCode = new Html5Qrcode(divId);
     await html5QrCode.start({facingMode:"environment"}, {fps:20, qrbox:250}, (text) => {
-        const card = document.getElementById(resId);
-        
         if(!isPutaway && processedUIDs.has(text)) {
-            card.innerHTML = "<h2>⚠️ DUPLICATE</h2>";
-            card.classList.add('duplicate-flash');
-            if(navigator.vibrate) navigator.vibrate(200);
-            setTimeout(() => card.classList.remove('duplicate-flash'), 800);
+            alert("⚠️ DUPLICATE SCAN BLOCKED");
             return;
         }
 
@@ -156,7 +145,7 @@ async function toggleCamera(divId, resId, isPutaway) {
 
         if(isPutaway) {
             activePutawayData = p;
-            card.innerHTML = `<h3>${p.skuName}</h3><p>${p.batch}</p>`;
+            document.getElementById(resId).innerHTML = `<h3>${p.skuName}</h3><p>${p.batch}</p>`;
             document.getElementById('manualEntry').style.display = "block";
             document.getElementById('putawayCamBtn').style.display = "none";
             html5QrCode.stop(); isScanning = false;
@@ -164,9 +153,8 @@ async function toggleCamera(divId, resId, isPutaway) {
             processedUIDs.add(text);
             queue.push({skuName: p.skuName, batch: p.batch, fullQR: text, destination: "Raw_Scans"});
             saveState();
-            card.innerHTML = `<h2 style='color:var(--success)'>✅ ${p.skuName}</h2>`;
+            document.getElementById(resId).innerHTML = `<h2 style='color:var(--success)'>✅ ${p.skuName}</h2>`;
             updateTable(p);
-            if(navigator.vibrate) navigator.vibrate(50);
         }
     });
     isScanning = true;
@@ -179,7 +167,7 @@ function parseQR(val) {
 }
 
 function updateTable(p) {
-    const row = `<tr><td>${p.skuName}</td><td>${p.batch}</td><td style="color:var(--success)">QUEUED</td></tr>`;
+    const row = `<tr><td>${p.skuName}</td><td>${p.batch}</td><td>READY</td></tr>`;
     document.getElementById('scanTableBody').insertAdjacentHTML('afterbegin', row);
 }
 
@@ -188,7 +176,7 @@ function submitPutaway(wh) {
     let qty = document.getElementById('caseQty').value;
     queue.push({skuName: activePutawayData.skuName, batch: activePutawayData.batch, cases: qty, destination: wh});
     saveState();
-    document.getElementById('putawayInfo').innerHTML = `<h3 style='color:var(--success)'>SAVED: ${wh}</h3>`;
+    document.getElementById('putawayInfo').innerHTML = `<h3 style='color:var(--success)'>QUEUED FOR ${wh}</h3>`;
     setTimeout(cancelPutaway, 1500);
 }
 
@@ -199,7 +187,7 @@ function cancelPutaway() {
     document.getElementById('putawayInfo').innerText = "Scan pallet QR";
 }
 
-function clearSession() { if(confirm("Reset duplicate list and clear screen?")) { processedUIDs.clear(); document.getElementById('scanTableBody').innerHTML = ""; saveState(); } }
+function clearSession() { if(confirm("Reset list and duplicates?")) { processedUIDs.clear(); document.getElementById('scanTableBody').innerHTML = ""; saveState(); } }
 
 function downloadCSV() {
     let csv = "SKU,Batch\n";
