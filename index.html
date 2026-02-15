@@ -3,69 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WH Pro Scanner v2.0</title>
+    <title>WH Pro Scanner</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="data:application/manifest+json,{'name':'Warehouse Pro','short_name':'WHPro','start_url':'.','display':'standalone','background_color':'#121212','theme_color':'#1e3c72'}">
+
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 10px; overflow-x: hidden; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 10px; }
         
-        /* Header & Stats */
+        /* Stats & Header */
         .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; }
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         .stat-card { background: var(--card); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #333; }
         .stat-val { display: block; font-size: 24px; font-weight: bold; color: var(--primary); }
         .stat-label { font-size: 11px; text-transform: uppercase; opacity: 0.6; }
 
-        /* Scanner Area */
-        #reader { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 2px solid #333; position: relative; }
-        #result { background: var(--card); min-height: 80px; margin: 15px 0; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; align-items: center; font-weight: bold; border: 1px solid #333; transition: 0.3s; }
+        /* Scanner Display */
+        #reader { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 2px solid #333; }
+        #result { background: var(--card); min-height: 90px; margin: 15px 0; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; border: 1px solid #333; transition: 0.3s; padding: 10px; }
 
-        /* Action Buttons */
+        /* Professional Buttons */
         .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
-        button { border: none; border-radius: 12px; font-weight: bold; font-size: 14px; cursor: pointer; padding: 18px; transition: 0.2s; color: white; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        button { border: none; border-radius: 12px; font-weight: bold; cursor: pointer; padding: 18px; transition: 0.2s; color: white; }
         .btn-main { grid-column: span 2; background: var(--primary); font-size: 18px; }
-        .btn-torch { background: #444; }
-        .btn-clear { background: var(--danger); }
-        .btn-excel { background: var(--success); }
+        .btn-torch { background: #444; font-size: 14px; }
+        .btn-excel { background: var(--success); font-size: 14px; }
+        .btn-clear { grid-column: span 2; background: transparent; color: #666; font-size: 12px; margin-top: 5px; }
 
         /* Sync Status */
-        #syncIndicator { text-align: center; font-size: 12px; margin-bottom: 10px; height: 15px; color: var(--success); }
+        #syncIndicator { text-align: center; font-size: 12px; margin-bottom: 8px; color: var(--success); height: 15px; }
 
-        /* Search & Table */
-        .search-box { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: white; margin-bottom: 10px; }
-        .table-container { background: var(--card); border-radius: 12px; overflow: hidden; }
+        /* Search & Data Table */
+        .search-box { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: white; margin-bottom: 10px; outline: none; }
+        .table-container { background: var(--card); border-radius: 12px; overflow: hidden; margin-top: 10px; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         th { background: #252525; padding: 12px; text-align: left; opacity: 0.7; }
         td { padding: 12px; border-top: 1px solid #333; }
-        tr:nth-child(even) { background: #222; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <h2 style="font-size: 18px;">PRO SCANNER</h2>
+        <h2 style="font-size: 18px;">WH PRO SCANNER</h2>
         <div id="syncIndicator"></div>
     </div>
 
     <div class="stats-grid">
         <div class="stat-card"><span class="stat-val" id="totalCases">0</span><span class="stat-label">Total Cases</span></div>
-        <div class="stat-card"><span class="stat-val" id="batchCount" style="color:#34C759">0</span><span class="stat-label">Unique Batches</span></div>
+        <div class="stat-card"><span class="stat-val" id="batchCount" style="color:var(--success)">0</span><span class="stat-label">Unique Batches</span></div>
     </div>
 
     <div id="reader"></div>
-    <div id="result">Waiting for Camera...</div>
+    <div id="result">Ready to Scan</div>
 
     <div class="controls">
-        <button id="camBtn" class="btn-main" onclick="toggleCamera()">🔘 START SCANNING</button>
-        <button class="btn-torch" onclick="toggleTorch()">🔦 LIGHT</button>
-        <button class="btn-excel" onclick="downloadExcel()">📊 EXPORT</button>
-        <button class="btn-clear" style="grid-column: span 2; opacity: 0.6; padding: 10px;" onclick="clearSession()">🗑️ RESET LOCAL SESSION</button>
+        <button id="camBtn" class="btn-main" onclick="toggleCamera()">🔘 START CAMERA</button>
+        <button class="btn-torch" onclick="toggleTorch()">🔦 FLASHLIGHT</button>
+        <button class="btn-excel" onclick="downloadExcel()">📊 EXPORT EXCEL</button>
+        <button class="btn-clear" onclick="clearSession()">🗑️ RESET LOCAL LIST</button>
     </div>
 
     <input type="text" class="search-box" id="tableSearch" placeholder="🔍 Search SKU or Batch..." onkeyup="filterTable()">
 
     <div class="table-container">
-        <table id="scanLog">
+        <table>
             <thead><tr><th>SKU</th><th>Batch</th><th>Qty</th></tr></thead>
             <tbody id="scanTableBody"></tbody>
         </table>
@@ -90,7 +95,7 @@ function playBeep(f=880, d=150) {
     o.frequency.value = f; g.gain.setValueAtTime(0.1, audioCtx.currentTime);
     g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d/1000);
     o.start(); o.stop(audioCtx.currentTime + d/1000);
-    if ("vibrate" in navigator) navigator.vibrate(50); // Haptic feedback
+    if ("vibrate" in navigator) navigator.vibrate(60); 
 }
 
 async function syncToGoogle(data) {
@@ -100,10 +105,10 @@ async function syncToGoogle(data) {
     const status = document.getElementById('syncIndicator');
     while(syncQueue.length > 0) {
         try {
-            status.innerText = `⏳ Syncing ${syncQueue.length} pending...`;
+            status.innerText = `⏳ Uploading ${syncQueue.length} items...`;
             await fetch(GOOGLE_URL, {method:"POST", mode:"no-cors", body:JSON.stringify(syncQueue[0])});
             syncQueue.shift(); localStorage.setItem('syncQueue', JSON.stringify(syncQueue));
-        } catch(e) { status.innerText = "❌ Offline Mode"; break; }
+        } catch(e) { status.innerText = "❌ Offline - Data Saved"; break; }
     }
     window.isSyncing = false;
     if(syncQueue.length === 0) status.innerText = "✅ Cloud Synced";
@@ -114,14 +119,14 @@ async function toggleCamera() {
     const resEl = document.getElementById('result');
     if(isScanning) { 
         await html5QrCode.stop(); isScanning = false; 
-        document.getElementById('camBtn').innerText = "🔘 START SCANNING"; 
+        document.getElementById('camBtn').innerText = "🔘 START CAMERA"; 
         document.getElementById('camBtn').style.background = "var(--primary)";
         return; 
     }
     html5QrCode = new Html5Qrcode("reader");
-    await html5QrCode.start({facingMode:"environment"}, {fps:24, qrbox: {width: 250, height: 150}}, (text) => {
+    await html5QrCode.start({facingMode:"environment"}, {fps:24, qrbox: {width: 250, height: 160}}, (text) => {
         if(processedUIDs.has(text)) { 
-            resEl.innerHTML = "<span style='color:var(--danger)'>⚠️ DUPLICATE</span>";
+            resEl.innerHTML = "<span style='color:var(--danger); font-size:22px;'>⚠️ DUPLICATE</span>";
             playBeep(220, 300); return; 
         }
         let p = (function(val){
@@ -131,7 +136,7 @@ async function toggleCamera() {
         })(text);
         if(!p) return;
 
-        resEl.innerHTML = "<span style='color:var(--success)'>✅ SCANNED</span>";
+        resEl.innerHTML = "<span style='color:var(--success); font-size:20px;'>✅ SCANNED SUCCESSFULLY</span>";
         playBeep(880, 100);
         
         processedUIDs.add(text);
@@ -139,10 +144,10 @@ async function toggleCamera() {
         scans[key] = scans[key] || {name:p.skuName, batch:p.batch, count:0};
         scans[key].count++; updateUI(); syncToGoogle(p);
 
-        setTimeout(() => { if(isScanning) resEl.innerHTML = `<span style='font-size:20px;'>${p.skuName}</span><span style='opacity:0.6;font-size:12px;'>${p.batch}</span>`; }, 700);
+        setTimeout(() => { if(isScanning) resEl.innerHTML = `<span style='font-size:22px; color:var(--primary)'>${p.skuName}</span><br><span style='font-size:14px; opacity:0.7'>${p.batch}</span>`; }, 800);
     });
     isScanning = true; 
-    document.getElementById('camBtn').innerText = "⏹️ STOP SCANNING";
+    document.getElementById('camBtn').innerText = "⏹️ STOP CAMERA";
     document.getElementById('camBtn').style.background = "var(--danger)";
 }
 
@@ -150,7 +155,7 @@ function toggleTorch() {
     if (!isScanning) return alert("Start camera first!");
     torchOn = !torchOn;
     html5QrCode.applyVideoConstraints({ advanced: [{ torch: torchOn }] })
-    .catch(() => alert("Torch not supported on this device"));
+    .catch(() => alert("Torch not supported on this browser/device"));
 }
 
 function updateUI() {
@@ -170,11 +175,11 @@ function filterTable() {
 
 function downloadExcel() {
     let d = [["SKU", "Batch", "Qty"]]; Object.values(scans).forEach(i=>d.push([i.name,i.batch,i.count]));
-    XLSX.writeFile(XLSX.utils.book_append_sheet(XLSX.utils.book_new(), XLSX.utils.aoa_to_sheet(d), "Warehouse"), "Scan_Report.xlsx");
+    XLSX.writeFile(XLSX.utils.book_append_sheet(XLSX.utils.book_new(), XLSX.utils.aoa_to_sheet(d), "WH_Scan"), "Report.xlsx");
 }
 
-function clearSession() { if(confirm("This clears the screen, but NOT Google Sheets. Continue?")) { scans={}; processedUIDs.clear(); updateUI(); document.getElementById('result').innerText="Ready"; } }
-setInterval(()=> { if(syncQueue.length > 0 && !window.isSyncing) syncToGoogle(null); }, 10000);
+function clearSession() { if(confirm("Clear local list? (Data in Sheets stays safe)")) { scans={}; processedUIDs.clear(); updateUI(); } }
+setInterval(()=> { if(syncQueue.length > 0 && !window.isSyncing) syncToGoogle(null); }, 15000);
 </script>
 </body>
 </html>
