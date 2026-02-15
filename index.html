@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v3.7 - Controlled Scan</title>
+    <title>Warehouse Pro v3.8</title>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <style>
@@ -18,7 +18,7 @@
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         .stat-card { background: var(--card); padding: 12px; border-radius: 12px; text-align: center; border: 1px solid #333; }
         .stat-val { display: block; font-size: 22px; font-weight: bold; color: var(--primary); }
-        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; min-height: 80px; display: flex; align-items: center; justify-content: center; }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; min-height: 80px; display: flex; flex-direction:column; align-items: center; justify-content: center; }
         #reader, #readerPutaway { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 1px solid #333; }
         .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
         .btn { border: none; border-radius: 10px; padding: 16px; font-weight: bold; color: white; cursor: pointer; width: 100%; font-size: 14px; }
@@ -26,11 +26,10 @@
         .btn-torch { background: #444; }
         .btn-excel { background: var(--success); }
         .btn-danger { background: var(--danger); }
-        input { width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; font-size: 20px; margin: 15px 0; text-align: center; }
+        input { width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; font-size: 24px; margin: 15px 0; text-align: center; font-weight: bold; }
         .table-container { background: var(--card); border-radius: 12px; overflow: hidden; margin-top: 10px; }
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
         td { padding: 10px; border-top: 1px solid #333; }
-        /* Visual Feedback Flash */
         .flash-success { background: rgba(52, 199, 89, 0.2) !important; border-color: var(--success) !important; }
         .flash-error { background: rgba(255, 59, 48, 0.2) !important; border-color: var(--danger) !important; }
     </style>
@@ -48,6 +47,7 @@
             <button id="camBtn" class="btn btn-main" onclick="toggleCamera('reader', 'result', false)">🔘 START CAMERA</button>
             <button class="btn btn-torch" onclick="toggleTorch()">🔦 LIGHT</button>
             <button class="btn btn-excel" onclick="downloadCSV()">📊 CSV</button>
+            <button class="btn btn-danger" style="grid-column: span 2" onclick="clearAllScans()">🗑️ CLEAR ALL DATA</button>
         </div>
         <div class="table-container"><table><tbody id="scanTableBody"></tbody></table></div>
     </div>
@@ -56,8 +56,8 @@
         <h2 style="text-align:center; margin-bottom:10px;">📥 Putaway</h2>
         <div id="readerPutaway"></div>
         <div class="card" id="putawayInfo">Scan pallet QR</div>
-        <div id="manualEntry" style="display:none;">
-            <input type="number" id="caseQty" value="1" pattern="\d*">
+        <div id="manualEntry" style="display:none; width: 100%;">
+            <input type="number" id="caseQty" value="1" pattern="\d*" inputmode="numeric">
             <div class="controls">
                 <button class="btn btn-excel" onclick="submitPutaway('FG1_WH')">FG1 WH</button>
                 <button class="btn btn-main" onclick="submitPutaway('FG2_WH')">FG2 WH</button>
@@ -79,7 +79,7 @@
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbzje-F-YxBO87cEySqTBrjjAYBcaDSAWY1Jqa8BQxar0CaViZTqz_t1bom-xUlPxkKW9g/exec";
 
 let html5QrCode, isScanning = false, isProcessing = false;
-let processedUIDs = new Set(), scans = {}, torchOn = false;
+let processedUIDs = new Set(), scans = {}, torchOn = false, activePutawayData = null;
 let skuMapping = JSON.parse(document.getElementById('skuInput').value);
 
 function showTab(tab) {
@@ -94,33 +94,23 @@ async function toggleCamera(divId, resId, isPutaway) {
     if(isScanning) { await html5QrCode.stop(); isScanning = false; return; }
     html5QrCode = new Html5Qrcode(divId);
     await html5QrCode.start({facingMode:"environment"}, {fps:20, qrbox:250}, async (text) => {
-        
-        // 1. HARD BLOCK: Ignore camera if we are already processing a scan
         if(isProcessing) return;
-
         const displayCard = document.getElementById(resId);
 
-        // 2. DUPLICATE CHECK
         if(!isPutaway && processedUIDs.has(text)) {
-            isProcessing = true; // Lock
+            isProcessing = true;
             displayCard.innerHTML = "<h2 style='color:var(--danger)'>⚠️ DUPLICATE</h2>";
             displayCard.classList.add('flash-error');
-            if(navigator.vibrate) navigator.vibrate(200);
-            
-            setTimeout(() => { 
-                displayCard.classList.remove('flash-error');
-                displayCard.innerHTML = "READY TO SCAN";
-                isProcessing = false; // Unlock after 1.5 seconds
-            }, 1500);
+            setTimeout(() => { displayCard.classList.remove('flash-error'); displayCard.innerHTML = "READY TO SCAN"; isProcessing = false; }, 1500);
             return;
         }
 
         let p = parseQR(text);
         if(!p) return;
-        
-        isProcessing = true; // Lock camera
+        isProcessing = true;
 
         if(isPutaway) {
+            activePutawayData = p; // Store SKU/Batch for sending later
             displayCard.innerHTML = `<h3>${p.skuName}</h3><p>${p.batch}</p>`;
             document.getElementById('manualEntry').style.display = "block";
             document.getElementById('putawayCamBtn').style.display = "none";
@@ -129,17 +119,9 @@ async function toggleCamera(divId, resId, isPutaway) {
             processedUIDs.add(text);
             displayCard.innerHTML = `<h2 style='color:var(--success)'>✅ ${p.skuName}</h2>`;
             displayCard.classList.add('flash-success');
-            if(navigator.vibrate) navigator.vibrate(50);
-            
             updateLocalTable(p);
             sendData({skuName: p.skuName, batch: p.batch, fullQR: text, destination: "Raw_Scans"});
-
-            // Auto-Reset for next scan after 1.2 seconds
-            setTimeout(() => {
-                displayCard.classList.remove('flash-success');
-                displayCard.innerHTML = "READY TO SCAN";
-                isProcessing = false; // Unlock
-            }, 1200);
+            setTimeout(() => { displayCard.classList.remove('flash-success'); displayCard.innerHTML = "READY TO SCAN"; isProcessing = false; }, 1200);
         }
     });
     isScanning = true;
@@ -164,6 +146,41 @@ function updateLocalTable(p) {
     document.getElementById('batchCount').innerText = Object.keys(scans).length;
 }
 
+function clearAllScans() {
+    if(confirm("Are you sure you want to clear all current session data? (Google Sheet data will not be affected)")) {
+        scans = {};
+        processedUIDs.clear();
+        document.getElementById('scanTableBody').innerHTML = "";
+        document.getElementById('totalCases').innerText = "0";
+        document.getElementById('batchCount').innerText = "0";
+        document.getElementById('result').innerHTML = "DATA CLEARED";
+    }
+}
+
+async function submitPutaway(wh) {
+    if(!activePutawayData) return;
+    let qty = document.getElementById('caseQty').value;
+    const res = document.getElementById('putawayInfo');
+    res.innerHTML = "⏳ SYNCING TO " + wh + "...";
+    
+    await sendData({
+        skuName: activePutawayData.skuName,
+        batch: activePutawayData.batch,
+        cases: qty,
+        destination: wh
+    });
+
+    res.innerHTML = `<h3 style='color:var(--success)'>✅ RECORDED IN ${wh}</h3><p>${qty} Cases</p>`;
+    setTimeout(cancelPutaway, 2500);
+}
+
+function cancelPutaway() {
+    activePutawayData = null;
+    document.getElementById('manualEntry').style.display = "none";
+    document.getElementById('putawayCamBtn').style.display = "block";
+    document.getElementById('putawayInfo').innerText = "Scan pallet QR";
+}
+
 function toggleTorch() { if(isScanning) { torchOn = !torchOn; html5QrCode.applyVideoConstraints({advanced:[{torch:torchOn}]}); } }
 
 function downloadCSV() {
@@ -171,26 +188,10 @@ function downloadCSV() {
     Object.values(scans).forEach(i => csv += `${i.name},${i.batch},${i.count}\n`);
     const blob = new Blob([csv], {type:'text/csv'});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'Outbound_Report.csv'; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = 'Report.csv'; a.click();
 }
 
-function cancelPutaway() {
-    document.getElementById('manualEntry').style.display = "none";
-    document.getElementById('putawayCamBtn').style.display = "block";
-    document.getElementById('putawayInfo').innerText = "Scan pallet QR";
-}
-
-async function submitPutaway(wh) {
-    let qty = document.getElementById('caseQty').value;
-    const res = document.getElementById('putawayInfo');
-    res.innerHTML = "⏳ SYNCING...";
-    let p = {skuName: document.querySelector('#putawayInfo h3').innerText, batch: document.querySelector('#putawayInfo p').innerText};
-    await sendData({skuName: p.skuName, batch: p.batch, cases: qty, destination: wh});
-    res.innerHTML = `<h3 style='color:var(--success)'>✅ SENT TO ${wh}</h3>`;
-    setTimeout(cancelPutaway, 2000);
-}
-
-async function sendData(p) { try { fetch(GOOGLE_URL, {method:"POST", mode:"no-cors", body:JSON.stringify(p)}); } catch(e){} }
+async function sendData(p) { try { await fetch(GOOGLE_URL, {method:"POST", mode:"no-cors", body:JSON.stringify(p)}); } catch(e){} }
 </script>
 </body>
 </html>
