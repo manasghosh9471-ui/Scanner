@@ -82,7 +82,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <script>
-const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbzrzd998ZFJA3yEz_15wIId0HeWp4drt5X7wuyWL0jUevM3fw26L03td_llLDJEojcKTw/exec;
+const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbxEyTryEWI6bNqWredx3a_k5yh8ByzWrZZVorGYKyne2_RjlOeDr670TuYTu1wPoFWC/exec
+;
 let scans = {}, processedUIDs = new Set(), isScanning = false, audioCtx = null, torchOn = false;
 let skuMapping = JSON.parse(document.getElementById('skuInput').value);
 let syncQueue = JSON.parse(localStorage.getItem('syncQueue')) || [];
@@ -183,4 +184,5 @@ setInterval(()=> { if(syncQueue.length > 0 && !window.isSyncing) syncToGoogle(nu
 </script>
 </body>
 </html>
+
 
