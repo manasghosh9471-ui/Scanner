@@ -20,7 +20,8 @@
         .btn-start {background:#4CAF50;color:white;}
         .btn-sync {background:#2196F3;color:white;}
         .btn-clear {background:#eee;color:#666;font-size:12px;}
-        .sync-status {font-size:10px;text-align:center;color:#4CAF50;margin-top:5px;display:none;}
+        .sync-status {font-size:12px;text-align:center;color:#4CAF50;margin-top:5px;font-weight:bold;}
+        #offlineCounter {text-align:center; color:orange; font-weight:bold; margin-bottom:10px; display:none; font-size:14px;}
     </style>
 </head>
 <body>
@@ -31,14 +32,16 @@
     <div id="reader"></div>
     <div id="result">Ready to scan...</div>
 
+    <div id="offlineCounter">⚠️ <span id="pendingCount">0</span> Pending Uploads...</div>
+
     <div class="stats">
         <div class="stat-box">Batches: <span id="batchCount">0</span></div>
         <div class="stat-box">Total Cases: <span id="totalCases">0</span></div>
     </div>
 
     <button class="btn-start" id="camBtn" onclick="toggleCamera()">📷 START CAMERA</button>
-    <button class="btn-sync" onclick="downloadExcel()">📊 DOWNLOAD LOCAL REPORT</button>
-    <div id="syncIndicator" class="sync-status">⚡ Synced to Google Sheets</div>
+    <button class="btn-sync" onclick="downloadExcel()">📊 DOWNLOAD REPORT</button>
+    <div id="syncIndicator" class="sync-status"></div>
     <button class="btn-clear" onclick="clearSession()">🗑️ Clear Local View</button>
 
     <table id="scanLog">
@@ -59,6 +62,23 @@ let processedUIDs = new Set();
 let skuMapping = JSON.parse(document.getElementById('skuInput').value);
 let html5QrCode = null;
 let isScanning = false;
+let syncQueue = JSON.parse(localStorage.getItem('syncQueue')) || [];
+let audioCtx = null;
+
+// --- 🔊 BEEP SYSTEM ---
+function playBeep(freq = 880, duration = 150) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.value = freq;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration/1000);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration/1000);
+}
 
 function parseQR(val) {
     if (val.length < 30) return null;
@@ -74,18 +94,51 @@ function parseQR(val) {
 }
 
 async function syncToGoogle(data) {
-    document.getElementById('syncIndicator').style.display = "block";
-    try {
-        await fetch(GOOGLE_URL, {
-            method: "POST",
-            mode: "no-cors",
-            body: JSON.stringify(data)
-        });
-        setTimeout(() => { document.getElementById('syncIndicator').style.display = "none"; }, 2000);
-    } catch (e) { console.error("Sync Error"); }
+    if (data) {
+        syncQueue.push(data);
+        localStorage.setItem('syncQueue', JSON.stringify(syncQueue));
+    }
+    updateOfflineUI();
+
+    if (window.isSyncing || syncQueue.length === 0) return;
+    window.isSyncing = true;
+
+    const status = document.getElementById('syncIndicator');
+
+    while (syncQueue.length > 0) {
+        const item = syncQueue[0];
+        try {
+            status.innerText = `⏳ Syncing ${syncQueue.length} pending...`;
+            await fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(item) });
+            syncQueue.shift();
+            localStorage.setItem('syncQueue', JSON.stringify(syncQueue));
+            updateOfflineUI();
+        } catch (e) {
+            status.innerText = "❌ Offline - Saved to memory";
+            break;
+        }
+    }
+    window.isSyncing = false;
+    if (syncQueue.length === 0) status.innerText = "✅ All Synced";
+}
+
+function updateOfflineUI() {
+    const el = document.getElementById('offlineCounter');
+    const countEl = document.getElementById('pendingCount');
+    if (syncQueue.length > 0) {
+        el.style.display = "block";
+        countEl.innerText = syncQueue.length;
+    } else {
+        el.style.display = "none";
+    }
 }
 
 async function toggleCamera() {
+    // AUDIO UNLOCK FOR MOBILE
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
     if (isScanning) {
         await html5QrCode.stop();
         isScanning = false;
@@ -93,15 +146,18 @@ async function toggleCamera() {
         document.getElementById('camBtn').style.background = "#4CAF50";
         return;
     }
+
     html5QrCode = new Html5Qrcode("reader");
     await html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, (text) => {
         if (processedUIDs.has(text)) {
-            document.getElementById('result').innerHTML = "<span style='color:red'>⚠️ DUPLICATE DETECTED</span>";
+            document.getElementById('result').innerHTML = "<span style='color:red'>⚠️ DUPLICATE</span>";
+            playBeep(220, 300); // Low beep for duplicate
             return;
         }
         const p = parseQR(text);
         if (!p) return;
 
+        playBeep(880, 150); // Success beep
         processedUIDs.add(text);
         const key = `${p.skuName}-${p.batch}`;
         scans[key] = scans[key] || { name: p.skuName, batch: p.batch, count: 0 };
@@ -136,7 +192,10 @@ function downloadExcel() {
     XLSX.writeFile(wb, "Warehouse_Report.xlsx");
 }
 
-function clearSession() { if(confirm("Clear local view? Data on Google Sheets will remain.")) { scans = {}; processedUIDs.clear(); updateUI(); } }
+function clearSession() { if(confirm("Clear local view?")) { scans = {}; processedUIDs.clear(); updateUI(); } }
+
+// AUTO-RETRY EVERY 15 SECONDS
+setInterval(() => { if (syncQueue.length > 0) syncToGoogle(null); }, 15000);
 </script>
 </body>
 </html>
