@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WH Pro Scanner & Putaway</title>
+    <title>Warehouse Pro v3.5</title>
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
@@ -12,52 +12,84 @@
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, sans-serif; }
-        body { background: var(--bg); color: var(--text); padding: 10px; padding-bottom: 80px; }
+        body { background: var(--bg); color: var(--text); padding: 10px; padding-bottom: 90px; }
         
         .tab-content { display: none; }
         .active-tab { display: block; }
 
-        /* Bottom Navigation Bar */
-        .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #1E1E1E; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #333; height: 70px; z-index: 1000; }
+        /* Navigation Bar */
+        .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #1E1E1E; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #333; height: 75px; z-index: 1000; }
         .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #666; font-size: 12px; cursor: pointer; border: none; background: none; }
         .nav-item.active { color: var(--primary); font-weight: bold; }
         .nav-icon { font-size: 24px; margin-bottom: 4px; }
 
-        /* UI Styling */
-        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; text-align: center; }
-        #reader, #readerPutaway { width: 100%; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid #333; }
-        .btn { border: none; border-radius: 10px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 10px; font-size: 16px; }
-        .btn-primary { background: var(--primary); }
-        .btn-success { background: var(--success); }
+        /* Stats Display */
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .stat-card { background: var(--card); padding: 12px; border-radius: 12px; text-align: center; border: 1px solid #333; }
+        .stat-val { display: block; font-size: 22px; font-weight: bold; color: var(--primary); }
+        .stat-label { font-size: 10px; text-transform: uppercase; opacity: 0.6; }
+
+        /* Scanning UI */
+        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; }
+        #reader, #readerPutaway { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 1px solid #333; }
         
+        /* Controls */
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .btn { border: none; border-radius: 10px; padding: 16px; font-weight: bold; color: white; cursor: pointer; width: 100%; font-size: 14px; }
+        .btn-main { grid-column: span 2; background: var(--primary); font-size: 16px; }
+        .btn-torch { background: #444; }
+        .btn-excel { background: var(--success); }
+        .btn-danger { background: var(--danger); }
+
         input { width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; font-size: 20px; margin: 15px 0; text-align: center; }
-        .wh-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        
+        /* Summary Table */
+        .table-container { background: var(--card); border-radius: 12px; overflow: hidden; margin-top: 10px; font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #252525; padding: 10px; text-align: left; opacity: 0.6; }
+        td { padding: 10px; border-top: 1px solid #333; }
     </style>
 </head>
 <body>
 
     <div id="scanTab" class="tab-content active-tab">
-        <h2 style="margin: 10px 0;">📦 Outbound Scan</h2>
+        <div class="stats-grid">
+            <div class="stat-card"><span class="stat-val" id="totalCases">0</span><span class="stat-label">Total Cases</span></div>
+            <div class="stat-card"><span class="stat-val" id="batchCount" style="color:var(--success)">0</span><span class="stat-label">Unique Batches</span></div>
+        </div>
+
         <div id="reader"></div>
-        <div class="card" id="result" style="margin-top:15px;">Ready to scan...</div>
-        <button class="btn btn-primary" id="btnScanCam" onclick="toggleCamera('reader', 'result', false)">📷 START CAMERA</button>
+        <div class="card" id="result" style="margin-top:10px;">Ready for Outbound Scan</div>
+
+        <div class="controls">
+            <button id="camBtn" class="btn btn-main" onclick="toggleCamera('reader', 'result', false)">🔘 START CAMERA</button>
+            <button class="btn btn-torch" onclick="toggleTorch()">🔦 LIGHT</button>
+            <button class="btn btn-excel" onclick="downloadCSV()">📊 EXPORT CSV</button>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead><tr><th>SKU</th><th>Batch</th><th>Qty</th></tr></thead>
+                <tbody id="scanTableBody"></tbody>
+            </table>
+        </div>
     </div>
 
     <div id="putawayTab" class="tab-content">
-        <h2 style="margin: 10px 0;">📥 Putaway (Manual)</h2>
+        <h2 style="margin: 10px 0; text-align:center;">📥 Putaway Entry</h2>
         <div id="readerPutaway"></div>
-        <div class="card" id="putawayInfo" style="margin-top:15px;">Scan box to assign WH</div>
+        <div class="card" id="putawayInfo" style="margin-top:10px;">Scan pallet barcode to begin</div>
         
         <div id="manualEntry" style="display:none;">
-            <p style="opacity: 0.7;">Enter quantity for this pallet:</p>
+            <p style="opacity: 0.7;">Enter total cases for this pallet:</p>
             <input type="number" id="caseQty" value="1" pattern="\d*">
-            <div class="wh-selector">
-                <button class="btn btn-success" onclick="submitPutaway('FG1_WH')">TO FG1 WH</button>
-                <button class="btn btn-primary" onclick="submitPutaway('FG2_WH')">TO FG2 WH</button>
+            <div class="controls">
+                <button class="btn btn-excel" onclick="submitPutaway('FG1_WH')">TO FG1 WH</button>
+                <button class="btn btn-main" onclick="submitPutaway('FG2_WH')">TO FG2 WH</button>
+                <button class="btn btn-danger" style="grid-column: span 2" onclick="cancelPutaway()">❌ CANCEL</button>
             </div>
-            <button class="btn" style="background:#333; margin-top:20px;" onclick="cancelPutaway()">❌ Cancel</button>
         </div>
-        <button id="putawayCamBtn" class="btn btn-primary" onclick="toggleCamera('readerPutaway', 'putawayInfo', true)">📷 START PUTAWAY SCAN</button>
+        <button id="putawayCamBtn" class="btn btn-main" onclick="toggleCamera('readerPutaway', 'putawayInfo', true)">📷 START PUTAWAY SCAN</button>
     </div>
 
     <div class="nav-bar">
@@ -73,10 +105,10 @@
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script>
-// PASTE YOUR NEW GOOGLE SCRIPT URL HERE
-const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbxEyTryEWI6bNqWredx3a_k5yh8ByzWrZZVorGYKyne2_RjlOeDr670TuYTu1wPoFWC/exec";
+// CURRENT GOOGLE WEB APP URL
+const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbzje-F-YxBO87cEySqTBrjjAYBcaDSAWY1Jqa8BQxar0CaViZTqz_t1bom-xUlPxkKW9g/exec";
 
-let html5QrCode, isScanning = false, currentSku = null;
+let html5QrCode, isScanning = false, currentSku = null, torchOn = false, scans = {};
 let skuMapping = JSON.parse(document.getElementById('skuInput').value);
 
 function showTab(tab) {
@@ -95,7 +127,7 @@ function showTab(tab) {
 async function toggleCamera(divId, resId, isPutaway) {
     if(isScanning) { await html5QrCode.stop(); isScanning = false; return; }
     html5QrCode = new Html5Qrcode(divId);
-    await html5QrCode.start({facingMode:"environment"}, {fps:20, qrbox:250}, (text) => {
+    await html5QrCode.start({facingMode:"environment"}, {fps:24, qrbox:250}, (text) => {
         let p = parseQR(text);
         if(!p) return;
         
@@ -107,6 +139,7 @@ async function toggleCamera(divId, resId, isPutaway) {
             html5QrCode.stop(); isScanning = false;
         } else {
             document.getElementById(resId).innerHTML = `<h3 style='color:var(--success)'>✅ ${p.skuName}</h3>`;
+            updateLocalTable(p);
             sendData({skuName: p.skuName, batch: p.batch, fullQR: text, destination: "Raw_Scans"});
         }
     });
@@ -119,10 +152,38 @@ function parseQR(val) {
     return {skuName:skuMapping[s]||"UNK", batch:`41-${b}-${d.startsWith('0')?d.substring(1):d}`};
 }
 
+function updateLocalTable(p) {
+    let key = `${p.skuName}-${p.batch}`;
+    scans[key] = scans[key] || {name:p.skuName, batch:p.batch, count:0};
+    scans[key].count++;
+    let h="", t=0; Object.values(scans).forEach(i=>{
+        h+=`<tr><td>${i.name}</td><td>${i.batch}</td><td><b>${i.count}</b></td></tr>`;
+        t+=i.count;
+    });
+    document.getElementById('scanTableBody').innerHTML = h;
+    document.getElementById('totalCases').innerText = t;
+    document.getElementById('batchCount').innerText = Object.keys(scans).length;
+}
+
+function toggleTorch() {
+    if (!isScanning) return;
+    torchOn = !torchOn;
+    html5QrCode.applyVideoConstraints({ advanced: [{ torch: torchOn }] });
+}
+
+function downloadCSV() {
+    let csv = "SKU,Batch,Qty\n";
+    Object.values(scans).forEach(i => csv += `${i.name},${i.batch},${i.count}\n`);
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'Warehouse_Outbound_Report.csv'; a.click();
+}
+
 function cancelPutaway() {
     document.getElementById('manualEntry').style.display = "none";
     document.getElementById('putawayCamBtn').style.display = "block";
-    document.getElementById('putawayInfo').innerText = "Scan box to assign WH";
+    document.getElementById('putawayInfo').innerText = "Scan pallet barcode to begin";
 }
 
 async function submitPutaway(wh) {
