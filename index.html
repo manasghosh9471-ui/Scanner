@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v4.2</title>
+    <title>Warehouse Pro v4.3</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, sans-serif; }
@@ -13,32 +13,32 @@
         .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #1E1E1E; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #333; height: 75px; z-index: 1000; }
         .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #666; font-size: 12px; border: none; background: none; }
         .nav-item.active { color: var(--primary); font-weight: bold; }
-        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; min-height: 80px; display: flex; flex-direction:column; align-items: center; justify-content: center; }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; min-height: 80px; display: flex; flex-direction:column; align-items: center; justify-content: center; transition: 0.3s; }
         #reader, #readerPutaway { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 1px solid #333; }
-        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-        .btn { border: none; border-radius: 10px; padding: 16px; font-weight: bold; color: white; cursor: pointer; width: 100%; font-size: 14px; }
-        .btn-main { grid-column: span 2; background: var(--primary); }
+        .btn { border: none; border-radius: 10px; padding: 16px; font-weight: bold; color: white; cursor: pointer; width: 100%; font-size: 14px; margin-top: 8px; }
+        .btn-main { background: var(--primary); }
         .btn-excel { background: var(--success); }
         .btn-danger { background: var(--danger); }
         input { width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; font-size: 24px; margin: 15px 0; text-align: center; }
-        #syncStatus { background: #1a1a1a; padding: 8px; border-radius: 20px; font-size: 11px; margin-bottom: 10px; text-align: center; border: 1px solid #333; }
-        .online { color: var(--success); }
-        .offline { color: var(--danger); }
+        #syncStatus { background: #1a1a1a; padding: 8px; border-radius: 20px; font-size: 11px; margin-bottom: 10px; text-align: center; border: 1px solid #333; transition: 0.5s; }
+        .online { color: var(--success); border-color: var(--success) !important; }
+        .offline { color: var(--danger); border-color: var(--danger) !important; }
+        .duplicate-flash { background: rgba(255, 59, 48, 0.3) !important; border: 2px solid var(--danger) !important; }
         table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
         td { padding: 10px; border-top: 1px solid #333; }
     </style>
 </head>
 <body>
 
-    <div id="syncStatus" class="online">● SYSTEM ONLINE (0 Pending)</div>
+    <div id="syncStatus">● CHECKING CONNECTION...</div>
 
     <div id="scanTab" class="tab-content active-tab">
         <div id="reader"></div>
         <div class="card" id="result" style="margin-top:10px;">READY TO SCAN</div>
-        <div class="controls">
-            <button id="camBtn" class="btn btn-main" onclick="toggleCamera('reader', 'result', false)">🔘 START CAMERA</button>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+            <button id="camBtn" class="btn btn-main" style="grid-column: span 2;" onclick="toggleCamera('reader', 'result', false)">🔘 START CAMERA</button>
             <button class="btn btn-excel" onclick="downloadCSV()">📊 CSV</button>
-            <button class="btn btn-danger" onclick="clearList()">🗑️ CLEAR</button>
+            <button class="btn btn-danger" onclick="clearSession()">🗑️ RESET</button>
         </div>
         <table><tbody id="scanTableBody"></tbody></table>
     </div>
@@ -48,7 +48,7 @@
         <div class="card" id="putawayInfo">Scan pallet QR</div>
         <div id="manualEntry" style="display:none; width: 100%;">
             <input type="number" id="caseQty" value="1" inputmode="numeric">
-            <div class="controls">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
                 <button class="btn btn-excel" onclick="submitPutaway('FG1_WH')">FG1 WH</button>
                 <button class="btn btn-main" onclick="submitPutaway('FG2_WH')">FG2 WH</button>
                 <button class="btn btn-danger" style="grid-column: span 2" onclick="cancelPutaway()">❌ CANCEL</button>
@@ -66,15 +66,18 @@
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script>
-const GOOGLE_URL = "YOUR_DEPLOY_URL_HERE"; // Ensure this matches your script URL
+const GOOGLE_URL = "YOUR_DEPLOY_URL_HERE"; 
+
 let html5QrCode, isScanning = false, isProcessing = false;
 let queue = JSON.parse(localStorage.getItem('scanQueue')) || [];
+let processedUIDs = new Set(JSON.parse(localStorage.getItem('sessionIDs')) || []);
 let skuMapping = JSON.parse(document.getElementById('skuInput').value);
 let activePutawayData = null;
 
-// --- OFFLINE/SYNC LOGIC ---
-function saveQueue() {
+// --- SYNC & PERSISTENCE ---
+function saveState() {
     localStorage.setItem('scanQueue', JSON.stringify(queue));
+    localStorage.setItem('sessionIDs', JSON.stringify([...processedUIDs]));
     updateSyncUI();
 }
 
@@ -82,11 +85,11 @@ function updateSyncUI() {
     const status = document.getElementById('syncStatus');
     const pending = queue.length;
     if (navigator.onLine) {
-        status.innerHTML = `● SYSTEM ONLINE (${pending} Pending Uploads)`;
+        status.innerHTML = `● ONLINE: ${pending} WAITING TO SYNC`;
         status.className = "online";
         if (pending > 0 && !isProcessing) processQueue();
     } else {
-        status.innerHTML = `● OFFLINE: ${pending} SCANS SAVED IN MEMORY`;
+        status.innerHTML = `● OFFLINE: ${pending} SCANS SAVED ON PHONE`;
         status.className = "offline";
     }
 }
@@ -96,49 +99,55 @@ async function processQueue() {
     isProcessing = true;
     try {
         const item = queue[0];
-        // Send to Google Sheets
         await fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(item) });
-        queue.shift(); // Remove from memory after success
-        saveQueue();
-    } catch (e) { console.log("Sync error, retrying..."); }
+        queue.shift();
+        saveState();
+    } catch (e) { console.error("Sync failed, retrying..."); }
     isProcessing = false;
-    setTimeout(processQueue, 1500); // Wait 1.5s before next item
+    setTimeout(processQueue, 1500);
 }
 
-// --- TABS & NAVIGATION ---
+// --- TABS ---
 function showTab(tab) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active-tab'));
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-    if(tab === 'scan') { 
-        document.getElementById('scanTab').classList.add('active-tab'); 
-        document.getElementById('navScan').classList.add('active'); 
-    } else { 
-        document.getElementById('putawayTab').classList.add('active-tab'); 
-        document.getElementById('navPut').classList.add('active'); 
-    }
+    if(tab === 'scan') { document.getElementById('scanTab').classList.add('active-tab'); document.getElementById('navScan').classList.add('active'); }
+    else { document.getElementById('putawayTab').classList.add('active-tab'); document.getElementById('navPut').classList.add('active'); }
     if(isScanning) { html5QrCode.stop(); isScanning = false; }
 }
 
-// --- CAMERA & SCANNING ---
+// --- SCANNING ENGINE ---
 async function toggleCamera(divId, resId, isPutaway) {
     if(isScanning) { await html5QrCode.stop(); isScanning = false; return; }
     html5QrCode = new Html5Qrcode(divId);
     await html5QrCode.start({facingMode:"environment"}, {fps:20, qrbox:250}, (text) => {
+        const card = document.getElementById(resId);
+        
+        // 1. DUPLICATE CHECK
+        if(!isPutaway && processedUIDs.has(text)) {
+            card.innerHTML = "<h2>⚠️ DUPLICATE</h2>";
+            card.classList.add('duplicate-flash');
+            if(navigator.vibrate) navigator.vibrate(200);
+            setTimeout(() => card.classList.remove('duplicate-flash'), 1000);
+            return;
+        }
+
         let p = parseQR(text);
         if(!p) return;
 
         if(isPutaway) {
             activePutawayData = p;
-            document.getElementById(resId).innerHTML = `<h3>${p.skuName}</h3><p>${p.batch}</p>`;
+            card.innerHTML = `<h3>${p.skuName}</h3><p>${p.batch}</p>`;
             document.getElementById('manualEntry').style.display = "block";
             document.getElementById('putawayCamBtn').style.display = "none";
             html5QrCode.stop(); isScanning = false;
         } else {
-            // Check for duplicates in current session list
+            processedUIDs.add(text);
             queue.push({skuName: p.skuName, batch: p.batch, fullQR: text, destination: "Raw_Scans"});
-            saveQueue();
-            document.getElementById(resId).innerHTML = `<h2 style='color:var(--success)'>SAVED: ${p.skuName}</h2>`;
-            updateLocalTable(p);
+            saveState();
+            card.innerHTML = `<h2 style='color:var(--success)'>✅ ${p.skuName}</h2>`;
+            updateTable(p);
+            if(navigator.vibrate) navigator.vibrate(50);
         }
     });
     isScanning = true;
@@ -150,23 +159,17 @@ function parseQR(val) {
     return {skuName:skuMapping[s]||"UNK", batch:`41-${b}-${d.startsWith('0')?d.substring(1):d}`};
 }
 
-function updateLocalTable(p) {
-    let row = `<tr><td>${p.skuName}</td><td>${p.batch}</td><td style="color:var(--success)">SAVED</td></tr>`;
+function updateTable(p) {
+    const row = `<tr><td>${p.skuName}</td><td>${p.batch}</td><td style="color:var(--success)">OK</td></tr>`;
     document.getElementById('scanTableBody').insertAdjacentHTML('afterbegin', row);
 }
 
-// --- PUTAWAY ACTIONS ---
 function submitPutaway(wh) {
     if(!activePutawayData) return;
     let qty = document.getElementById('caseQty').value;
-    queue.push({
-        skuName: activePutawayData.skuName, 
-        batch: activePutawayData.batch, 
-        cases: qty, 
-        destination: wh
-    });
-    saveQueue();
-    document.getElementById('putawayInfo').innerHTML = `<h3 style='color:var(--success)'>✅ SAVED FOR ${wh}</h3>`;
+    queue.push({skuName: activePutawayData.skuName, batch: activePutawayData.batch, cases: qty, destination: wh});
+    saveState();
+    document.getElementById('putawayInfo').innerHTML = `<h3 style='color:var(--success)'>SAVED: ${wh}</h3>`;
     setTimeout(cancelPutaway, 2000);
 }
 
@@ -177,8 +180,8 @@ function cancelPutaway() {
     document.getElementById('putawayInfo').innerText = "Scan pallet QR";
 }
 
-// --- UTILS ---
-function clearList() { if(confirm("Clear local history?")) document.getElementById('scanTableBody').innerHTML = ""; }
+function clearSession() { if(confirm("Delete scanned list and reset duplicates?")) { processedUIDs.clear(); document.getElementById('scanTableBody').innerHTML = ""; saveState(); } }
+
 function downloadCSV() {
     let csv = "SKU,Batch\n";
     document.querySelectorAll('#scanTableBody tr').forEach(tr => {
@@ -187,7 +190,7 @@ function downloadCSV() {
     });
     const blob = new Blob([csv], {type:'text/csv'});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'Warehouse_Scans.csv'; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = 'Scan_Log.csv'; a.click();
 }
 
 window.addEventListener('online', updateSyncUI);
