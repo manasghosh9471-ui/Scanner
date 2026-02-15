@@ -2,53 +2,74 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🏭 Live Warehouse Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WH Pro Scanner v2.0</title>
     <style>
-        * {margin:0;padding:0;box-sizing:border-box;}
-        body {font-family:Arial,sans-serif;background:linear-gradient(135deg,#1e3c72,#2a5298);min-height:100vh;padding:15px;color:#333;}
-        .container {max-width:450px;margin:0 auto;background:white;border-radius:20px;padding:25px;box-shadow:0 15px 35px rgba(0,0,0,0.3);}
-        h1 {text-align:center;margin-bottom:20px;font-size:22px;color:#1e3c72;}
-        #reader {width:100%;height:280px;border:4px solid #4CAF50;border-radius:15px;margin:15px 0;background:#f9f9f9;overflow:hidden;}
-        #result {background:#e3f2fd;padding:15px;border-radius:12px;margin:15px 0;text-align:center;font-weight:bold;min-height:70px;border-left:5px solid #2196F3;display:flex;flex-direction:column;justify-content:center;align-items:center;}
-        .stats {display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px;}
-        .stat-box {background:#fff3cd;padding:10px;border-radius:10px;text-align:center;font-weight:bold;font-size:14px;}
-        table {width:100%;border-collapse:collapse;margin-top:15px;font-size:14px;}
-        th,td {padding:12px;text-align:left;border-bottom:1px solid #eee;}
-        th {background:#f8f9fa;color:#666;}
-        button {width:100%;padding:16px;border:none;border-radius:12px;font-size:16px;margin:5px 0;cursor:pointer;font-weight:bold;transition:0.2s;}
-        .btn-start {background:#4CAF50;color:white;}
-        .btn-sync {background:#2196F3;color:white;}
-        .btn-clear {background:#eee;color:#666;font-size:12px;}
-        .sync-status {font-size:12px;text-align:center;color:#4CAF50;margin-top:5px;font-weight:bold;min-height:15px;}
-        #offlineCounter {text-align:center; color:orange; font-weight:bold; margin-bottom:10px; display:none; font-size:14px;}
+        :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
+        * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 10px; overflow-x: hidden; }
+        
+        /* Header & Stats */
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .stat-card { background: var(--card); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid #333; }
+        .stat-val { display: block; font-size: 24px; font-weight: bold; color: var(--primary); }
+        .stat-label { font-size: 11px; text-transform: uppercase; opacity: 0.6; }
+
+        /* Scanner Area */
+        #reader { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 2px solid #333; position: relative; }
+        #result { background: var(--card); min-height: 80px; margin: 15px 0; border-radius: 12px; display: flex; flex-direction: column; justify-content: center; align-items: center; font-weight: bold; border: 1px solid #333; transition: 0.3s; }
+
+        /* Action Buttons */
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        button { border: none; border-radius: 12px; font-weight: bold; font-size: 14px; cursor: pointer; padding: 18px; transition: 0.2s; color: white; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-main { grid-column: span 2; background: var(--primary); font-size: 18px; }
+        .btn-torch { background: #444; }
+        .btn-clear { background: var(--danger); }
+        .btn-excel { background: var(--success); }
+
+        /* Sync Status */
+        #syncIndicator { text-align: center; font-size: 12px; margin-bottom: 10px; height: 15px; color: var(--success); }
+
+        /* Search & Table */
+        .search-box { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #000; color: white; margin-bottom: 10px; }
+        .table-container { background: var(--card); border-radius: 12px; overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { background: #252525; padding: 12px; text-align: left; opacity: 0.7; }
+        td { padding: 12px; border-top: 1px solid #333; }
+        tr:nth-child(even) { background: #222; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>📦 Live Cumulative Scanner</h1>
-    
-    <div id="reader"></div>
-    <div id="result">Ready to scan...</div>
-
-    <div id="offlineCounter">⚠️ <span id="pendingCount">0</span> Pending Uploads...</div>
-
-    <div class="stats">
-        <div class="stat-box">Batches: <span id="batchCount">0</span></div>
-        <div class="stat-box">Total Cases: <span id="totalCases">0</span></div>
+    <div class="header">
+        <h2 style="font-size: 18px;">PRO SCANNER</h2>
+        <div id="syncIndicator"></div>
     </div>
 
-    <button class="btn-start" id="camBtn" onclick="toggleCamera()">📷 START CAMERA</button>
-    <button class="btn-sync" onclick="downloadExcel()">📊 DOWNLOAD REPORT</button>
-    <div id="syncIndicator" class="sync-status"></div>
-    <button class="btn-clear" onclick="clearSession()">🗑️ Clear Local View</button>
+    <div class="stats-grid">
+        <div class="stat-card"><span class="stat-val" id="totalCases">0</span><span class="stat-label">Total Cases</span></div>
+        <div class="stat-card"><span class="stat-val" id="batchCount" style="color:#34C759">0</span><span class="stat-label">Unique Batches</span></div>
+    </div>
 
-    <table id="scanLog">
-        <thead><tr><th>Qty</th><th>SKU</th><th>Batch</th></tr></thead>
-        <tbody id="scanTableBody"></tbody>
-    </table>
-</div>
+    <div id="reader"></div>
+    <div id="result">Waiting for Camera...</div>
+
+    <div class="controls">
+        <button id="camBtn" class="btn-main" onclick="toggleCamera()">🔘 START SCANNING</button>
+        <button class="btn-torch" onclick="toggleTorch()">🔦 LIGHT</button>
+        <button class="btn-excel" onclick="downloadExcel()">📊 EXPORT</button>
+        <button class="btn-clear" style="grid-column: span 2; opacity: 0.6; padding: 10px;" onclick="clearSession()">🗑️ RESET LOCAL SESSION</button>
+    </div>
+
+    <input type="text" class="search-box" id="tableSearch" placeholder="🔍 Search SKU or Batch..." onkeyup="filterTable()">
+
+    <div class="table-container">
+        <table id="scanLog">
+            <thead><tr><th>SKU</th><th>Batch</th><th>Qty</th></tr></thead>
+            <tbody id="scanTableBody"></tbody>
+        </table>
+    </div>
 
 <textarea id="skuInput" style="display:none;">{"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH"}</textarea>
 
@@ -57,43 +78,35 @@
 
 <script>
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbyH3zfMARW7bWnwq6yeO5jDtyMrkVKghRKcxZye--86CwMX8syeOfwTe3jzxONVKE95mg/exec";
-let scans = {}, processedUIDs = new Set(), isScanning = false, audioCtx = null;
+let scans = {}, processedUIDs = new Set(), isScanning = false, audioCtx = null, torchOn = false;
 let skuMapping = JSON.parse(document.getElementById('skuInput').value);
 let syncQueue = JSON.parse(localStorage.getItem('syncQueue')) || [];
 let html5QrCode = null;
 
 function playBeep(f=880, d=150) {
     if(!audioCtx) return;
-    try {
-        let o = audioCtx.createOscillator(), g = audioCtx.createGain();
-        o.connect(g); g.connect(audioCtx.destination);
-        o.frequency.value = f; g.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d/1000);
-        o.start(); o.stop(audioCtx.currentTime + d/1000);
-    } catch(e) { console.error("Audio error"); }
+    let o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.frequency.value = f; g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d/1000);
+    o.start(); o.stop(audioCtx.currentTime + d/1000);
+    if ("vibrate" in navigator) navigator.vibrate(50); // Haptic feedback
 }
 
 async function syncToGoogle(data) {
     if(data) { syncQueue.push(data); localStorage.setItem('syncQueue', JSON.stringify(syncQueue)); }
-    updateOfflineUI();
     if(window.isSyncing || syncQueue.length === 0) return;
     window.isSyncing = true;
     const status = document.getElementById('syncIndicator');
     while(syncQueue.length > 0) {
         try {
-            status.innerText = `⏳ Syncing ${syncQueue.length}...`;
+            status.innerText = `⏳ Syncing ${syncQueue.length} pending...`;
             await fetch(GOOGLE_URL, {method:"POST", mode:"no-cors", body:JSON.stringify(syncQueue[0])});
             syncQueue.shift(); localStorage.setItem('syncQueue', JSON.stringify(syncQueue));
-            updateOfflineUI();
-        } catch(e) { status.innerText = "❌ Offline"; break; }
+        } catch(e) { status.innerText = "❌ Offline Mode"; break; }
     }
     window.isSyncing = false;
-    if(syncQueue.length === 0) status.innerText = "✅ All Synced";
-}
-
-function updateOfflineUI() {
-    document.getElementById('offlineCounter').style.display = syncQueue.length > 0 ? "block" : "none";
-    document.getElementById('pendingCount').innerText = syncQueue.length;
+    if(syncQueue.length === 0) status.innerText = "✅ Cloud Synced";
 }
 
 async function toggleCamera() {
@@ -101,14 +114,14 @@ async function toggleCamera() {
     const resEl = document.getElementById('result');
     if(isScanning) { 
         await html5QrCode.stop(); isScanning = false; 
-        document.getElementById('camBtn').innerText = "📷 START CAMERA"; 
-        document.getElementById('camBtn').style.background = "#4CAF50";
+        document.getElementById('camBtn').innerText = "🔘 START SCANNING"; 
+        document.getElementById('camBtn').style.background = "var(--primary)";
         return; 
     }
     html5QrCode = new Html5Qrcode("reader");
-    await html5QrCode.start({facingMode:"environment"}, {fps:20, qrbox:250}, (text) => {
+    await html5QrCode.start({facingMode:"environment"}, {fps:24, qrbox: {width: 250, height: 150}}, (text) => {
         if(processedUIDs.has(text)) { 
-            resEl.innerHTML = "<span style='color:red; font-size:22px;'>⚠️ DUPLICATE</span>";
+            resEl.innerHTML = "<span style='color:var(--danger)'>⚠️ DUPLICATE</span>";
             playBeep(220, 300); return; 
         }
         let p = (function(val){
@@ -118,38 +131,50 @@ async function toggleCamera() {
         })(text);
         if(!p) return;
 
-        // Visual Success
-        resEl.innerHTML = "<span style='color:#4CAF50; font-size:20px;'>✅ SCANNED SUCCESSFULLY</span>";
-        playBeep(880, 150);
+        resEl.innerHTML = "<span style='color:var(--success)'>✅ SCANNED</span>";
+        playBeep(880, 100);
         
         processedUIDs.add(text);
         let key = `${p.skuName}-${p.batch}`;
         scans[key] = scans[key] || {name:p.skuName, batch:p.batch, count:0};
-        scans[key].count++; 
-        updateUI(); 
-        syncToGoogle(p);
+        scans[key].count++; updateUI(); syncToGoogle(p);
 
-        setTimeout(() => { if(isScanning) resEl.innerHTML = `<span style='color:#1e3c72; font-size:22px;'>${p.skuName}</span><br><span style='font-size:14px;'>${p.batch}</span>`; }, 800);
+        setTimeout(() => { if(isScanning) resEl.innerHTML = `<span style='font-size:20px;'>${p.skuName}</span><span style='opacity:0.6;font-size:12px;'>${p.batch}</span>`; }, 700);
     });
     isScanning = true; 
-    document.getElementById('camBtn').innerText = "⏹️ STOP CAMERA";
-    document.getElementById('camBtn').style.background = "#f44336";
+    document.getElementById('camBtn').innerText = "⏹️ STOP SCANNING";
+    document.getElementById('camBtn').style.background = "var(--danger)";
+}
+
+function toggleTorch() {
+    if (!isScanning) return alert("Start camera first!");
+    torchOn = !torchOn;
+    html5QrCode.applyVideoConstraints({ advanced: [{ torch: torchOn }] })
+    .catch(() => alert("Torch not supported on this device"));
 }
 
 function updateUI() {
-    let h="", t=0; Object.values(scans).forEach(i=>{ h+=`<tr><td><strong>${i.count}</strong></td><td>${i.name}</td><td>${i.batch}</td></tr>`; t+=i.count; });
+    let h="", t=0; Object.values(scans).forEach(i=>{ h+=`<tr><td>${i.name}</td><td>${i.batch}</td><td><strong>${i.count}</strong></td></tr>`; t+=i.count; });
     document.getElementById('scanTableBody').innerHTML = h;
     document.getElementById('totalCases').innerText = t;
     document.getElementById('batchCount').innerText = Object.keys(scans).length;
 }
 
-function downloadExcel() {
-    let d = [["Qty", "SKU Name", "Batch"]]; Object.values(scans).forEach(i=>d.push([i.count,i.name,i.batch]));
-    XLSX.writeFile(XLSX.utils.book_append_sheet(XLSX.utils.book_new(), XLSX.utils.aoa_to_sheet(d), "Warehouse_Report"), "Warehouse_Report.xlsx");
+function filterTable() {
+    let input = document.getElementById("tableSearch").value.toUpperCase();
+    let tr = document.getElementById("scanTableBody").getElementsByTagName("tr");
+    for (let i = 0; i < tr.length; i++) {
+        tr[i].style.display = tr[i].innerText.toUpperCase().indexOf(input) > -1 ? "" : "none";
+    }
 }
 
-function clearSession() { if(confirm("Clear local view?")) { scans={}; processedUIDs.clear(); updateUI(); document.getElementById('result').innerText="Ready..."; } }
-setInterval(()=> { if(syncQueue.length > 0 && !window.isSyncing) syncToGoogle(null); }, 15000);
+function downloadExcel() {
+    let d = [["SKU", "Batch", "Qty"]]; Object.values(scans).forEach(i=>d.push([i.name,i.batch,i.count]));
+    XLSX.writeFile(XLSX.utils.book_append_sheet(XLSX.utils.book_new(), XLSX.utils.aoa_to_sheet(d), "Warehouse"), "Scan_Report.xlsx");
+}
+
+function clearSession() { if(confirm("This clears the screen, but NOT Google Sheets. Continue?")) { scans={}; processedUIDs.clear(); updateUI(); document.getElementById('result').innerText="Ready"; } }
+setInterval(()=> { if(syncQueue.length > 0 && !window.isSyncing) syncToGoogle(null); }, 10000);
 </script>
 </body>
 </html>
