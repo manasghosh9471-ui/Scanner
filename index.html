@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v3.5</title>
+    <title>Warehouse Pro v3.6 - Anti-Duplicate</title>
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <link rel="manifest" href="data:application/manifest+json,{'name':'WHPro','display':'standalone'}">
 
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
@@ -17,23 +16,19 @@
         .tab-content { display: none; }
         .active-tab { display: block; }
 
-        /* Navigation Bar */
         .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #1E1E1E; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #333; height: 75px; z-index: 1000; }
         .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #666; font-size: 12px; cursor: pointer; border: none; background: none; }
         .nav-item.active { color: var(--primary); font-weight: bold; }
         .nav-icon { font-size: 24px; margin-bottom: 4px; }
 
-        /* Stats Display */
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         .stat-card { background: var(--card); padding: 12px; border-radius: 12px; text-align: center; border: 1px solid #333; }
         .stat-val { display: block; font-size: 22px; font-weight: bold; color: var(--primary); }
         .stat-label { font-size: 10px; text-transform: uppercase; opacity: 0.6; }
 
-        /* Scanning UI */
-        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; transition: 0.3s; }
         #reader, #readerPutaway { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 1px solid #333; }
         
-        /* Controls */
         .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
         .btn { border: none; border-radius: 10px; padding: 16px; font-weight: bold; color: white; cursor: pointer; width: 100%; font-size: 14px; }
         .btn-main { grid-column: span 2; background: var(--primary); font-size: 16px; }
@@ -43,10 +38,8 @@
 
         input { width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; font-size: 20px; margin: 15px 0; text-align: center; }
         
-        /* Summary Table */
         .table-container { background: var(--card); border-radius: 12px; overflow: hidden; margin-top: 10px; font-size: 13px; }
         table { width: 100%; border-collapse: collapse; }
-        th { background: #252525; padding: 10px; text-align: left; opacity: 0.6; }
         td { padding: 10px; border-top: 1px solid #333; }
     </style>
 </head>
@@ -55,11 +48,11 @@
     <div id="scanTab" class="tab-content active-tab">
         <div class="stats-grid">
             <div class="stat-card"><span class="stat-val" id="totalCases">0</span><span class="stat-label">Total Cases</span></div>
-            <div class="stat-card"><span class="stat-val" id="batchCount" style="color:var(--success)">0</span><span class="stat-label">Unique Batches</span></div>
+            <div class="stat-card"><span class="stat-val" id="batchCount" style="color:var(--success)">0</span><span class="stat-label">Batches</span></div>
         </div>
 
         <div id="reader"></div>
-        <div class="card" id="result" style="margin-top:10px;">Ready for Outbound Scan</div>
+        <div class="card" id="result" style="margin-top:10px;">Ready for Outbound</div>
 
         <div class="controls">
             <button id="camBtn" class="btn btn-main" onclick="toggleCamera('reader', 'result', false)">🔘 START CAMERA</button>
@@ -68,20 +61,16 @@
         </div>
 
         <div class="table-container">
-            <table>
-                <thead><tr><th>SKU</th><th>Batch</th><th>Qty</th></tr></thead>
-                <tbody id="scanTableBody"></tbody>
-            </table>
+            <table><tbody id="scanTableBody"></tbody></table>
         </div>
     </div>
 
     <div id="putawayTab" class="tab-content">
         <h2 style="margin: 10px 0; text-align:center;">📥 Putaway Entry</h2>
         <div id="readerPutaway"></div>
-        <div class="card" id="putawayInfo" style="margin-top:10px;">Scan pallet barcode to begin</div>
+        <div class="card" id="putawayInfo" style="margin-top:10px;">Scan pallet barcode</div>
         
         <div id="manualEntry" style="display:none;">
-            <p style="opacity: 0.7;">Enter total cases for this pallet:</p>
             <input type="number" id="caseQty" value="1" pattern="\d*">
             <div class="controls">
                 <button class="btn btn-excel" onclick="submitPutaway('FG1_WH')">TO FG1 WH</button>
@@ -93,22 +82,18 @@
     </div>
 
     <div class="nav-bar">
-        <button class="nav-item active" id="navScan" onclick="showTab('scan')">
-            <span class="nav-icon">📦</span><span>SCAN</span>
-        </button>
-        <button class="nav-item" id="navPut" onclick="showTab('putaway')">
-            <span class="nav-icon">📥</span><span>PUTAWAY</span>
-        </button>
+        <button class="nav-item active" id="navScan" onclick="showTab('scan')"><span class="nav-icon">📦</span><span>SCAN</span></button>
+        <button class="nav-item" id="navPut" onclick="showTab('putaway')"><span class="nav-icon">📥</span><span>PUTAWAY</span></button>
     </div>
 
 <textarea id="skuInput" style="display:none;">{"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH"}</textarea>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script>
-// CURRENT GOOGLE WEB APP URL
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbzje-F-YxBO87cEySqTBrjjAYBcaDSAWY1Jqa8BQxar0CaViZTqz_t1bom-xUlPxkKW9g/exec";
 
 let html5QrCode, isScanning = false, currentSku = null, torchOn = false, scans = {};
+let processedUIDs = new Set(); // THE DUPLICATE PREVENTER
 let skuMapping = JSON.parse(document.getElementById('skuInput').value);
 
 function showTab(tab) {
@@ -128,16 +113,25 @@ async function toggleCamera(divId, resId, isPutaway) {
     if(isScanning) { await html5QrCode.stop(); isScanning = false; return; }
     html5QrCode = new Html5Qrcode(divId);
     await html5QrCode.start({facingMode:"environment"}, {fps:24, qrbox:250}, (text) => {
+        
+        // CHECK FOR DUPLICATE
+        if(!isPutaway && processedUIDs.has(text)) {
+            document.getElementById(resId).innerHTML = "<h3 style='color:var(--danger)'>⚠️ DUPLICATE BOX</h3>";
+            if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+            return;
+        }
+
         let p = parseQR(text);
         if(!p) return;
         
         if(isPutaway) {
             currentSku = p;
-            document.getElementById('putawayInfo').innerHTML = `<h3 style='color:var(--primary)'>${p.skuName}</h3><p>${p.batch}</p>`;
+            document.getElementById('putawayInfo').innerHTML = `<h3>${p.skuName}</h3><p>${p.batch}</p>`;
             document.getElementById('manualEntry').style.display = "block";
             document.getElementById('putawayCamBtn').style.display = "none";
             html5QrCode.stop(); isScanning = false;
         } else {
+            processedUIDs.add(text); // LOCK THE BARCODE
             document.getElementById(resId).innerHTML = `<h3 style='color:var(--success)'>✅ ${p.skuName}</h3>`;
             updateLocalTable(p);
             sendData({skuName: p.skuName, batch: p.batch, fullQR: text, destination: "Raw_Scans"});
@@ -177,36 +171,27 @@ function downloadCSV() {
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'Warehouse_Outbound_Report.csv'; a.click();
+    a.href = url; a.download = 'Warehouse_Report.csv'; a.click();
 }
 
 function cancelPutaway() {
     document.getElementById('manualEntry').style.display = "none";
     document.getElementById('putawayCamBtn').style.display = "block";
-    document.getElementById('putawayInfo').innerText = "Scan pallet barcode to begin";
+    document.getElementById('putawayInfo').innerText = "Scan pallet barcode";
 }
 
 async function submitPutaway(wh) {
     let qty = document.getElementById('caseQty').value;
     const res = document.getElementById('putawayInfo');
-    res.innerHTML = "⏳ Sending to " + wh + "...";
-    
-    await sendData({
-        skuName: currentSku.skuName,
-        batch: currentSku.batch,
-        cases: qty,
-        destination: wh
-    });
-
-    res.innerHTML = `<h3 style='color:var(--success)'>✅ SENT TO ${wh}</h3><p>${qty} Cases of ${currentSku.skuName}</p>`;
+    res.innerHTML = "⏳ Syncing...";
+    await sendData({skuName: currentSku.skuName, batch: currentSku.batch, cases: qty, destination: wh});
+    res.innerHTML = `<h3 style='color:var(--success)'>✅ SENT TO ${wh}</h3>`;
     document.getElementById('manualEntry').style.display = "none";
     document.getElementById('putawayCamBtn').style.display = "block";
 }
 
 async function sendData(payload) {
-    try { 
-        await fetch(GOOGLE_URL, {method:"POST", mode:"no-cors", body:JSON.stringify(payload)}); 
-    } catch(e) { console.error("Sync Error"); }
+    try { await fetch(GOOGLE_URL, {method:"POST", mode:"no-cors", body:JSON.stringify(payload)}); } catch(e) {}
 }
 </script>
 </body>
