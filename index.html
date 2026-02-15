@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏭 Live Warehouse Dashboard</title>
+    <style>
+        * {margin:0;padding:0;box-sizing:border-box;}
+        body {font-family:Arial,sans-serif;background:linear-gradient(135deg,#1e3c72,#2a5298);min-height:100vh;padding:15px;color:#333;}
+        .container {max-width:450px;margin:0 auto;background:white;border-radius:20px;padding:25px;box-shadow:0 15px 35px rgba(0,0,0,0.3);}
+        h1 {text-align:center;margin-bottom:20px;font-size:22px;color:#1e3c72;}
+        #reader {width:100%;height:280px;border:4px solid #4CAF50;border-radius:15px;margin:15px 0;background:#f9f9f9;overflow:hidden;}
+        #result {background:#e3f2fd;padding:15px;border-radius:12px;margin:15px 0;text-align:center;font-weight:bold;min-height:60px;border-left:5px solid #2196F3;}
+        .stats {display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px;}
+        .stat-box {background:#fff3cd;padding:10px;border-radius:10px;text-align:center;font-weight:bold;font-size:14px;}
+        table {width:100%;border-collapse:collapse;margin-top:15px;font-size:14px;}
+        th,td {padding:12px;text-align:left;border-bottom:1px solid #eee;}
+        th {background:#f8f9fa;color:#666;}
+        button {width:100%;padding:16px;border:none;border-radius:12px;font-size:16px;margin:5px 0;cursor:pointer;font-weight:bold;transition:0.2s;}
+        .btn-start {background:#4CAF50;color:white;}
+        .btn-sync {background:#2196F3;color:white;}
+        .btn-clear {background:#eee;color:#666;font-size:12px;}
+        .sync-status {font-size:10px;text-align:center;color:#4CAF50;margin-top:5px;display:none;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📦 Live Cumulative Scanner</h1>
+    
+    <div id="reader"></div>
+    <div id="result">Ready to scan...</div>
+
+    <div class="stats">
+        <div class="stat-box">Batches: <span id="batchCount">0</span></div>
+        <div class="stat-box">Total Cases: <span id="totalCases">0</span></div>
+    </div>
+
+    <button class="btn-start" id="camBtn" onclick="toggleCamera()">📷 START CAMERA</button>
+    <button class="btn-sync" onclick="downloadExcel()">📊 DOWNLOAD LOCAL REPORT</button>
+    <div id="syncIndicator" class="sync-status">⚡ Synced to Google Sheets</div>
+    <button class="btn-clear" onclick="clearSession()">🗑️ Clear Local View</button>
+
+    <table id="scanLog">
+        <thead><tr><th>Qty</th><th>SKU</th><th>Batch</th></tr></thead>
+        <tbody id="scanTableBody"></tbody>
+    </table>
+</div>
+
+<textarea id="skuInput" style="display:none;">{"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH"}</textarea>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbyH3zfMARW7bWnwq6yeO5jDtyMrkVKghRKcxZye--86CwMX8syeOfwTe3jzxONVKE95mg/exec";
+let scans = {};
+let processedUIDs = new Set();
+let skuMapping = JSON.parse(document.getElementById('skuInput').value);
+let html5QrCode = null;
+let isScanning = false;
+
+function parseQR(val) {
+    if (val.length < 30) return null;
+    const sku = val.substring(3, 15);
+    const batch = val.substring(15, 19);
+    const date = val.substring(21, 25);
+    const cleanDate = date.startsWith('0') ? date.substring(1) : date;
+    return {
+        skuName: skuMapping[sku] || "UNK",
+        batch: `41-${batch}-${cleanDate}`,
+        fullQR: val
+    };
+}
+
+async function syncToGoogle(data) {
+    document.getElementById('syncIndicator').style.display = "block";
+    try {
+        await fetch(GOOGLE_URL, {
+            method: "POST",
+            mode: "no-cors",
+            body: JSON.stringify(data)
+        });
+        setTimeout(() => { document.getElementById('syncIndicator').style.display = "none"; }, 2000);
+    } catch (e) { console.error("Sync Error"); }
+}
+
+async function toggleCamera() {
+    if (isScanning) {
+        await html5QrCode.stop();
+        isScanning = false;
+        document.getElementById('camBtn').innerHTML = "📷 START CAMERA";
+        document.getElementById('camBtn').style.background = "#4CAF50";
+        return;
+    }
+    html5QrCode = new Html5Qrcode("reader");
+    await html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: 250 }, (text) => {
+        if (processedUIDs.has(text)) {
+            document.getElementById('result').innerHTML = "<span style='color:red'>⚠️ DUPLICATE DETECTED</span>";
+            return;
+        }
+        const p = parseQR(text);
+        if (!p) return;
+
+        processedUIDs.add(text);
+        const key = `${p.skuName}-${p.batch}`;
+        scans[key] = scans[key] || { name: p.skuName, batch: p.batch, count: 0 };
+        scans[key].count++;
+
+        updateUI();
+        syncToGoogle(p);
+        document.getElementById('result').innerHTML = `✅ ${p.skuName} <br> ${p.batch}`;
+    });
+    isScanning = true;
+    document.getElementById('camBtn').innerHTML = "⏹️ STOP CAMERA";
+    document.getElementById('camBtn').style.background = "#f44336";
+}
+
+function updateUI() {
+    let h = ""; let t = 0;
+    Object.values(scans).forEach(i => {
+        h += `<tr><td><strong>${i.count}</strong></td><td>${i.name}</td><td>${i.batch}</td></tr>`;
+        t += i.count;
+    });
+    document.getElementById('scanTableBody').innerHTML = h;
+    document.getElementById('batchCount').innerText = Object.keys(scans).length;
+    document.getElementById('totalCases').innerText = t;
+}
+
+function downloadExcel() {
+    const d = [["Cases", "SKU Name", "Batch"]];
+    Object.values(scans).forEach(i => d.push([i.count, i.name, i.batch]));
+    const ws = XLSX.utils.aoa_to_sheet(d);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Warehouse");
+    XLSX.writeFile(wb, "Warehouse_Report.xlsx");
+}
+
+function clearSession() { if(confirm("Clear local view? Data on Google Sheets will remain.")) { scans = {}; processedUIDs.clear(); updateUI(); } }
+</script>
+</body>
+</html>
