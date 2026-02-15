@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v5.2</title>
+    <title>Warehouse Pro v5.3</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --warning: #FF9500; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, sans-serif; }
@@ -12,23 +12,21 @@
         #reader { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 1px solid #333; margin-bottom: 10px; }
         .btn { border: none; border-radius: 10px; padding: 16px; font-weight: bold; color: white; cursor: pointer; width: 100%; font-size: 14px; margin-top: 8px; }
         .btn-main { background: var(--primary); }
-        .btn-danger { background: var(--danger); }
-        .btn-warn { background: var(--warning); }
+        .btn-danger { background: var(--danger); border: 1px solid #500; }
         input { width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; font-size: 32px; margin: 10px 0; text-align: center; }
-        #syncStatus { background: #1a1a1a; padding: 8px; border-radius: 20px; font-size: 11px; margin-bottom: 10px; text-align: center; border: 1px solid #333; transition: 0.3s; }
-        .online { color: var(--success); border-color: var(--success) !important; }
-        .offline { color: var(--danger); border-color: var(--danger) !important; }
+        #syncStatus { background: #1a1a1a; padding: 8px; border-radius: 20px; font-size: 11px; margin-bottom: 10px; text-align: center; border: 1px solid #333; }
+        .online { color: var(--success); }
+        .offline { color: var(--danger); }
         .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
         .mode-btn { padding: 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: #888; font-size: 11px; font-weight: bold; }
         .mode-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
-        td { padding: 10px; border-top: 1px solid #333; }
-        .label-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; font-weight: bold; margin-bottom: 5px; display: inline-block; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; color: #aaa; }
+        td { padding: 8px; border-top: 1px solid #333; }
     </style>
 </head>
 <body>
 
-    <div id="syncStatus">● CHECKING...</div>
+    <div id="syncStatus">● INITIALIZING...</div>
 
     <div class="mode-grid">
         <button class="mode-btn active" onclick="setMode('Normal', this)">📦 SCAN</button>
@@ -40,20 +38,19 @@
     <div id="reader"></div>
 
     <div id="resultCard" class="card">
-        <div id="modeLabel" class="label-badge" style="background:var(--primary)">Mode: Normal</div>
+        <div id="modeLabel" style="background:var(--primary); font-size:10px; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:5px;">MODE: NORMAL</div>
         <div id="statusText">Ready to Scan</div>
     </div>
 
     <div id="inputArea" style="display:none;" class="card">
         <h2 id="inputTitle" style="color:var(--primary)">Quantity</h2>
-        <p id="unitSubtext" style="font-size:12px; color:#888; margin-bottom:5px;"></p>
         <input type="number" id="qtyInput" value="1" inputmode="numeric">
         <div id="subButtons" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;"></div>
-        <button class="btn btn-danger" onclick="cancelInput()">❌ CANCEL</button>
+        <button class="btn btn-danger" onclick="cancelInput()" style="background:transparent; color:#888;">❌ CANCEL</button>
     </div>
 
     <button id="camBtn" class="btn btn-main" onclick="toggleCamera()">🔘 START CAMERA</button>
-    <button class="btn btn-danger" style="background:#444" onclick="clearLocal()">🗑️ CLEAR ALL</button>
+    <button class="btn" style="background:#222; color:#ff3b30; font-size:11px;" onclick="clearSession()">🗑️ CLEAR ALL (RESET DUPLICATES)</button>
     
     <table><tbody id="scanTableBody"></tbody></table>
 
@@ -64,23 +61,24 @@
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycby6lYCgFNMBky5TLxukv7GQ-PC45wCmaNNOcm8kE9mL4SoooplGfLKYXr7FMupD3iFQ9A/exec";
 let html5QrCode, isScanning = false, isProcessing = false, currentMode = 'Normal';
 let queue = JSON.parse(localStorage.getItem('whQueue')) || [];
+let duplicates = new Set(JSON.parse(localStorage.getItem('whDupes')) || []);
 let activeData = null;
 let skuMapping = JSON.parse(document.getElementById('skuInput').value);
 
-// --- SYNC ENGINE ---
-function saveQueue() {
+function saveState() {
     localStorage.setItem('whQueue', JSON.stringify(queue));
+    localStorage.setItem('whDupes', JSON.stringify([...duplicates]));
     updateSyncUI();
 }
 
 function updateSyncUI() {
     const status = document.getElementById('syncStatus');
     if (navigator.onLine) {
-        status.innerHTML = `● ONLINE: ${queue.length} PENDING SYNC`;
+        status.innerHTML = `● ONLINE: ${queue.length} PENDING`;
         status.className = "online";
         if (queue.length > 0 && !isProcessing) processQueue();
     } else {
-        status.innerHTML = `● OFFLINE: ${queue.length} SAVED ON PHONE`;
+        status.innerHTML = `● OFFLINE: ${queue.length} SAVED`;
         status.className = "offline";
     }
 }
@@ -92,21 +90,17 @@ async function processQueue() {
     try {
         await fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(item) });
         queue.shift();
-        saveQueue();
-    } catch (e) { console.log("Sync failed, retrying..."); }
+        saveState();
+    } catch (e) { console.error("Sync error"); }
     isProcessing = false;
-    if(queue.length > 0) setTimeout(processQueue, 1500);
+    if(queue.length > 0) setTimeout(processQueue, 1000);
 }
 
-// --- APP LOGIC ---
 function setMode(mode, btn) {
     currentMode = mode;
     document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    const label = document.getElementById('modeLabel');
-    label.innerText = "Mode: " + mode.replace('_','/');
-    const colors = {'Normal':'#007AFF', 'Putaway':'#34C759', 'Breakage':'#FF3B30', 'Short_Excess':'#FF9500'};
-    label.style.background = colors[mode];
+    document.getElementById('modeLabel').innerText = "MODE: " + mode.toUpperCase();
     cancelInput();
 }
 
@@ -114,8 +108,13 @@ async function toggleCamera() {
     if(isScanning) { await html5QrCode.stop(); isScanning = false; return; }
     html5QrCode = new Html5Qrcode("reader");
     await html5QrCode.start({facingMode:"environment"}, {fps:20, qrbox:250}, (text) => {
+        if(duplicates.has(text) && currentMode === 'Normal') {
+            alert("⚠️ DUPLICATE BLOCKED\nThis QR has already been scanned.");
+            return;
+        }
         let p = parseQR(text);
         if(!p) return;
+        p.raw = text; // Keep the full QR data
         activeData = p;
         handleScanMatch(p);
     });
@@ -125,30 +124,26 @@ async function toggleCamera() {
 function handleScanMatch(p) {
     const inputArea = document.getElementById('inputArea');
     const subButtons = document.getElementById('subButtons');
-    const status = document.getElementById('statusText');
-    const subtext = document.getElementById('unitSubtext');
     subButtons.innerHTML = "";
     
     if(currentMode === 'Normal') {
-        addToQueue(p.skuName, p.batch, 1, "Raw_Scans", "Cases");
-        status.innerHTML = `<b style="color:var(--success)">✅ QUEUED: ${p.skuName}</b>`;
+        duplicates.add(p.raw);
+        addToQueue(p.skuName, p.batch, 1, "Raw_Scans", "Cases", p.raw);
+        document.getElementById('statusText').innerHTML = `<b style="color:var(--success)">✅ ${p.skuName} ADDED</b>`;
     } else {
         inputArea.style.display = "block";
         document.getElementById('camBtn').style.display = "none";
-        status.innerText = `Scanned: ${p.skuName}`;
+        document.getElementById('statusText').innerText = `Editing: ${p.skuName}`;
         if(currentMode === 'Breakage') {
             document.getElementById('inputTitle').innerText = "Broken Bottles";
-            subtext.innerText = "(Bottles count)";
-            subButtons.innerHTML = `<button class="btn btn-danger" style="grid-column:span 2" onclick="submitFinal('Breakage_WH', 'Bottles')">RECORD BREAKAGE</button>`;
+            subButtons.innerHTML = `<button class="btn btn-main" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Breakage_WH', 'Bottles')">LOG BREAKAGE</button>`;
         } else if(currentMode === 'Short_Excess') {
-            document.getElementById('inputTitle').innerText = "Case Count";
-            subtext.innerText = "(Total cases)";
+            document.getElementById('inputTitle').innerText = "Case Adjustment";
             subButtons.innerHTML = `
                 <button class="btn btn-warn" onclick="submitFinal('Short_WH', 'Cases')">SHORT (-)</button>
                 <button class="btn btn-main" onclick="submitFinal('Excess_WH', 'Cases')">EXCESS (+)</button>`;
         } else if(currentMode === 'Putaway') {
-            document.getElementById('inputTitle').innerText = "Putaway Cases";
-            subtext.innerText = "(Total cases)";
+            document.getElementById('inputTitle').innerText = "Select Warehouse";
             subButtons.innerHTML = `
                 <button class="btn btn-main" onclick="submitFinal('FG1_WH', 'Cases')">FG1 WH</button>
                 <button class="btn btn-main" onclick="submitFinal('FG2_WH', 'Cases')">FG2 WH</button>`;
@@ -159,21 +154,19 @@ function handleScanMatch(p) {
 
 function submitFinal(dest, unit) {
     let qty = document.getElementById('qtyInput').value;
-    addToQueue(activeData.skuName, activeData.batch, qty, dest, unit);
+    addToQueue(activeData.skuName, activeData.batch, qty, dest, unit, activeData.raw);
     cancelInput();
-    document.getElementById('statusText').innerHTML = `<b style="color:var(--success)">✅ ${qty} ${unit} QUEUED</b>`;
 }
 
-function addToQueue(sku, batch, qty, dest, unit) {
-    queue.push({ skuName: sku, batch: batch, cases: qty, destination: dest, unit: unit, time: new Date().toLocaleTimeString() });
-    saveQueue();
-    updateTableDisplay();
+function addToQueue(sku, batch, qty, dest, unit, fullQR) {
+    queue.push({ skuName: sku, batch: batch, cases: qty, destination: dest, unit: unit, fullQR: fullQR });
+    saveState();
+    updateTable();
 }
 
-function updateTableDisplay() {
-    const body = document.getElementById('scanTableBody');
-    body.innerHTML = queue.slice(-5).reverse().map(item => 
-        `<tr><td>${item.skuName}</td><td>${item.cases} ${item.unit}</td><td>${item.destination}</td></tr>`
+function updateTable() {
+    document.getElementById('scanTableBody').innerHTML = queue.slice(-3).reverse().map(i => 
+        `<tr><td>${i.skuName}</td><td>${i.cases} ${i.unit}</td><td>${i.destination}</td></tr>`
     ).join('');
 }
 
@@ -189,12 +182,12 @@ function parseQR(val) {
     return {skuName:skuMapping[s]||"UNK", batch:`41-${b}-${d.startsWith('0')?d.substring(1):d}`};
 }
 
-function clearLocal() { if(confirm("Clear all pending scans?")) { queue = []; saveQueue(); updateTableDisplay(); } }
+function clearSession() { if(confirm("Clear duplicates and queue?")) { queue=[]; duplicates.clear(); saveState(); updateTable(); } }
 
 window.addEventListener('online', updateSyncUI);
 window.addEventListener('offline', updateSyncUI);
 updateSyncUI();
-updateTableDisplay();
+updateTable();
 </script>
 </body>
 </html>
