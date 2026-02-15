@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WH Pro Scanner & Putaway</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="data:application/manifest+json,{'name':'WHPro','display':'standalone'}">
+
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, sans-serif; }
@@ -12,69 +17,82 @@
         .tab-content { display: none; }
         .active-tab { display: block; }
 
-        /* Navigation Bar */
-        .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #1E1E1E; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #333; height: 65px; z-index: 1000; }
-        .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #666; font-size: 12px; cursor: pointer; }
+        /* Bottom Navigation Bar */
+        .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #1E1E1E; display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #333; height: 70px; z-index: 1000; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: #666; font-size: 12px; cursor: pointer; border: none; background: none; }
         .nav-item.active { color: var(--primary); font-weight: bold; }
+        .nav-icon { font-size: 24px; margin-bottom: 4px; }
 
-        /* UI Elements */
-        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; }
-        #reader, #readerPutaway { width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
-        .btn { border: none; border-radius: 10px; padding: 15px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 10px; }
+        /* UI Styling */
+        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; text-align: center; }
+        #reader, #readerPutaway { width: 100%; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid #333; }
+        .btn { border: none; border-radius: 10px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 10px; font-size: 16px; }
         .btn-primary { background: var(--primary); }
         .btn-success { background: var(--success); }
         
-        input { width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; font-size: 18px; margin: 10px 0; }
+        input { width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; font-size: 20px; margin: 15px 0; text-align: center; }
         .wh-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
     </style>
 </head>
 <body>
 
     <div id="scanTab" class="tab-content active-tab">
-        <h2 style="margin-bottom:10px">📦 Standard Scan</h2>
+        <h2 style="margin: 10px 0;">📦 Outbound Scan</h2>
         <div id="reader"></div>
-        <div class="card" id="result">Ready...</div>
-        <button class="btn btn-primary" onclick="toggleCamera('reader', 'result')">📷 START SCAN</button>
+        <div class="card" id="result" style="margin-top:15px;">Ready to scan...</div>
+        <button class="btn btn-primary" id="btnScanCam" onclick="toggleCamera('reader', 'result', false)">📷 START CAMERA</button>
     </div>
 
     <div id="putawayTab" class="tab-content">
-        <h2 style="margin-bottom:10px">📥 Putaway (Manual Qty)</h2>
+        <h2 style="margin: 10px 0;">📥 Putaway (Manual)</h2>
         <div id="readerPutaway"></div>
-        <div class="card" id="putawayInfo">Scan a box to start...</div>
+        <div class="card" id="putawayInfo" style="margin-top:15px;">Scan box to assign WH</div>
         
         <div id="manualEntry" style="display:none;">
-            <label>Confirm Number of Cases:</label>
-            <input type="number" id="caseQty" value="1" placeholder="Enter Cases">
+            <p style="opacity: 0.7;">Enter quantity for this pallet:</p>
+            <input type="number" id="caseQty" value="1" pattern="\d*">
             <div class="wh-selector">
-                <button class="btn btn-success" onclick="submitPutaway('FG1_WH')">FG1 WH</button>
-                <button class="btn btn-primary" onclick="submitPutaway('FG2_WH')">FG2 WH</button>
+                <button class="btn btn-success" onclick="submitPutaway('FG1_WH')">TO FG1 WH</button>
+                <button class="btn btn-primary" onclick="submitPutaway('FG2_WH')">TO FG2 WH</button>
             </div>
+            <button class="btn" style="background:#333; margin-top:20px;" onclick="cancelPutaway()">❌ Cancel</button>
         </div>
-        <button id="putawayCamBtn" class="btn btn-primary" onclick="toggleCamera('readerPutaway', 'putawayInfo', true)">📷 START SCAN</button>
+        <button id="putawayCamBtn" class="btn btn-primary" onclick="toggleCamera('readerPutaway', 'putawayInfo', true)">📷 START PUTAWAY SCAN</button>
     </div>
 
     <div class="nav-bar">
-        <div class="nav-item active" id="navScan" onclick="showTab('scan')"><span>📦</span>SCAN</div>
-        <div class="nav-item" id="navPut" onclick="showTab('putaway')"><span>📥</span>PUTAWAY</div>
+        <button class="nav-item active" id="navScan" onclick="showTab('scan')">
+            <span class="nav-icon">📦</span><span>SCAN</span>
+        </button>
+        <button class="nav-item" id="navPut" onclick="showTab('putaway')">
+            <span class="nav-icon">📥</span><span>PUTAWAY</span>
+        </button>
     </div>
 
-<textarea id="skuInput" style="display:none;">{"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN"}</textarea>
+<textarea id="skuInput" style="display:none;">{"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH"}</textarea>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script>
-const GOOGLE_URL = "YOUR_NEW_APPS_SCRIPT_URL";
+// PASTE YOUR NEW GOOGLE SCRIPT URL HERE
+const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbxEyTryEWI6bNqWredx3a_k5yh8ByzWrZZVorGYKyne2_RjlOeDr670TuYTu1wPoFWC/exec";
+
 let html5QrCode, isScanning = false, currentSku = null;
 let skuMapping = JSON.parse(document.getElementById('skuInput').value);
 
 function showTab(tab) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active-tab'));
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-    if(tab === 'scan') { document.getElementById('scanTab').classList.add('active-tab'); document.getElementById('navScan').classList.add('active'); }
-    else { document.getElementById('putawayTab').classList.add('active-tab'); document.getElementById('navPut').classList.add('active'); }
+    if(tab === 'scan') {
+        document.getElementById('scanTab').classList.add('active-tab');
+        document.getElementById('navScan').classList.add('active');
+    } else {
+        document.getElementById('putawayTab').classList.add('active-tab');
+        document.getElementById('navPut').classList.add('active');
+    }
     if(isScanning) { html5QrCode.stop(); isScanning = false; }
 }
 
-async function toggleCamera(divId, resId, isPutaway = false) {
+async function toggleCamera(divId, resId, isPutaway) {
     if(isScanning) { await html5QrCode.stop(); isScanning = false; return; }
     html5QrCode = new Html5Qrcode(divId);
     await html5QrCode.start({facingMode:"environment"}, {fps:20, qrbox:250}, (text) => {
@@ -83,12 +101,12 @@ async function toggleCamera(divId, resId, isPutaway = false) {
         
         if(isPutaway) {
             currentSku = p;
-            document.getElementById('putawayInfo').innerHTML = `<b>SKU:</b> ${p.skuName}<br><b>Batch:</b> ${p.batch}`;
+            document.getElementById('putawayInfo').innerHTML = `<h3 style='color:var(--primary)'>${p.skuName}</h3><p>${p.batch}</p>`;
             document.getElementById('manualEntry').style.display = "block";
             document.getElementById('putawayCamBtn').style.display = "none";
             html5QrCode.stop(); isScanning = false;
         } else {
-            document.getElementById(resId).innerHTML = `<span style='color:#34C759'>✅ ${p.skuName}</span>`;
+            document.getElementById(resId).innerHTML = `<h3 style='color:var(--success)'>✅ ${p.skuName}</h3>`;
             sendData({skuName: p.skuName, batch: p.batch, fullQR: text, destination: "Raw_Scans"});
         }
     });
@@ -99,6 +117,12 @@ function parseQR(val) {
     if(val.length < 30) return null;
     let s=val.substring(3,15), b=val.substring(15,19), d=val.substring(21,25);
     return {skuName:skuMapping[s]||"UNK", batch:`41-${b}-${d.startsWith('0')?d.substring(1):d}`};
+}
+
+function cancelPutaway() {
+    document.getElementById('manualEntry').style.display = "none";
+    document.getElementById('putawayCamBtn').style.display = "block";
+    document.getElementById('putawayInfo').innerText = "Scan box to assign WH";
 }
 
 async function submitPutaway(wh) {
@@ -113,14 +137,15 @@ async function submitPutaway(wh) {
         destination: wh
     });
 
-    res.innerHTML = `✅ Successfully putaway ${qty} cases in ${wh}`;
+    res.innerHTML = `<h3 style='color:var(--success)'>✅ SENT TO ${wh}</h3><p>${qty} Cases of ${currentSku.skuName}</p>`;
     document.getElementById('manualEntry').style.display = "none";
     document.getElementById('putawayCamBtn').style.display = "block";
 }
 
 async function sendData(payload) {
-    try { await fetch(GOOGLE_URL, {method:"POST", mode:"no-cors", body:JSON.stringify(payload)}); } 
-    catch(e) { alert("Offline - Data not saved"); }
+    try { 
+        await fetch(GOOGLE_URL, {method:"POST", mode:"no-cors", body:JSON.stringify(payload)}); 
+    } catch(e) { console.error("Sync Error"); }
 }
 </script>
 </body>
