@@ -3,134 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v6.1</title>
+    <title>Warehouse Pro v6.4</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: sans-serif; }
         body { background: var(--bg); color: var(--text); padding: 10px; text-align: center; }
         .card { background: var(--card); padding: 20px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #333; }
-        #hhtCatch { width: 100%; padding: 10px; background: #000; color: #34C759; border: 1px solid #333; border-radius: 5px; margin-bottom: 10px; font-size: 12px; }
+        #hhtCatch { position: absolute; left: -9999px; opacity: 0; }
         .btn { border: none; border-radius: 10px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 10px; font-size: 15px; }
         .btn-main { background: var(--primary); }
         .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
-        .mode-btn { padding: 15px; border-radius: 10px; border: 1px solid #444; background: #222; color: #888; font-weight: bold; }
+        .mode-btn { padding: 12px; border-radius: 10px; border: 1px solid #444; background: #222; color: #888; font-weight: bold; font-size: 11px; }
         .mode-btn.active { background: var(--primary); color: white; }
         input[type="number"] { width: 100%; padding: 15px; border-radius: 8px; background: #222; color: white; font-size: 40px; text-align: center; border: 2px solid var(--primary); margin: 15px 0; outline: none; }
-        input[type="number"]:focus { background: #333; border-color: var(--success); }
+        #logTable { width: 100%; margin-top: 15px; font-size: 12px; color: #aaa; border-collapse: collapse; }
+        #logTable td { padding: 8px; border-bottom: 1px solid #333; }
+        .count-badge { background: var(--success); color: black; padding: 2px 6px; border-radius: 5px; font-weight: bold; }
+        #reader { width: 100%; border-radius: 10px; margin-top: 10px; display: none; overflow: hidden; }
     </style>
 </head>
 <body onclick="forceFocus()">
 
-    <div id="syncStatus" style="color:var(--success); font-size: 12px; margin-bottom: 5px;">● HHT READY</div>
-    <input type="text" id="hhtCatch" placeholder="Laser Input Active..." autofocus autocomplete="off">
+    <div id="syncStatus" style="color:var(--success); font-size: 11px; margin-bottom: 5px;">● SYSTEM READY</div>
+    <input type="text" id="hhtCatch" autofocus autocomplete="off">
 
     <div class="mode-grid">
-        <button class="mode-btn active" onclick="setMode('Normal', this)">📦 SCAN</button>
+        <button class="mode-btn active" onclick="setMode('Normal', this)">📦 T&T STOCKS</button>
+        <button class="mode-btn" onclick="setMode('Stock_Count', this)">📊 STOCK COUNT</button>
         <button class="mode-btn" onclick="setMode('Putaway', this)">📥 PUTAWAY</button>
         <button class="mode-btn" onclick="setMode('Breakage', this)">🍾 BREAKAGE</button>
-        <button class="mode-btn" onclick="setMode('Short_Excess', this)">⚖️ ADJUST</button>
     </div>
 
     <div id="resultCard" class="card">
-        <div id="statusText" style="font-size: 18px; color: #888;">READY FOR SCAN</div>
+        <div id="statusText" style="font-size: 18px; color: #888; margin-bottom: 10px;">READY FOR SCAN</div>
+        <div style="border-top: 1px solid #333; padding-top: 10px;">
+            <table id="logTable"><tbody id="logBody"></tbody></table>
+        </div>
     </div>
 
     <div id="inputArea" style="display:none;" class="card">
-        <h2 id="inputTitle" style="color:var(--primary)">Enter Quantity</h2>
+        <h2 id="inputTitle" style="color:var(--primary)">Quantity</h2>
         <input type="number" id="qtyInput" value="1" inputmode="numeric">
         <div id="subButtons" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
         <button class="btn" onclick="cancelInput()" style="background:#333; margin-top: 20px;">❌ CANCEL</button>
     </div>
 
+    <div id="reader"></div>
+    <button class="btn" style="background:#444; font-size:12px; padding:10px;" onclick="toggleCamera()">📷 OPEN CAMERA (MOBILE)</button>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
 <script>
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycby6lYCgFNMBky5TLxukv7GQ-PC45wCmaNNOcm8kE9mL4SoooplGfLKYXr7FMupD3iFQ9A/exec";
-let currentMode = 'Normal', activeData = null, isEditing = false;
-let duplicates = new Set();
+let currentMode = 'Normal', activeData = null, isEditing = false, html5QrCode = null;
+let duplicates = new Set(), sessionHistory = [];
 const skuMapping = {"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH","1160W1799GNN":"EXN","1160W1799GPP":"EXP","1160W1799GQQ":"EXQ"};
 
-const catchField = document.getElementById('hhtCatch');
-const qtyField = document.getElementById('qtyInput');
-
-// 1. SMART FOCUS: Only focus laser if NOT editing
-function forceFocus() { if(!isEditing) catchField.focus(); }
+function forceFocus() { if(!isEditing) document.getElementById('hhtCatch').focus(); }
 setInterval(forceFocus, 600);
 
-catchField.addEventListener('input', (e) => {
-    let val = e.target.value;
-    if (val.length >= 25) { 
-        processScan(val);
-        e.target.value = ""; 
-    }
+document.getElementById('hhtCatch').addEventListener('input', (e) => {
+    if (e.target.value.length >= 25) { processScan(e.target.value); e.target.value = ""; }
 });
 
+async function toggleCamera() {
+    const r = document.getElementById('reader');
+    if(r.style.display === "block") { location.reload(); return; }
+    r.style.display = "block";
+    html5QrCode = new Html5Qrcode("reader");
+    await html5QrCode.start({facingMode:"environment"}, {fps:20, qrbox:250}, (text) => processScan(text));
+}
+
 function processScan(text) {
-    // HARD DUPLICATE BLOCKER
-    if (duplicates.has(text) && currentMode === 'Normal') {
-        showStatus("⚠️ DUPLICATE - ALREADY SCANNED", "var(--danger)");
-        if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
-        return;
-    }
-
+    if (duplicates.has(text) && currentMode === 'Normal') { showStatus("⚠️ DUPLICATE", "var(--danger)"); return; }
     let p = parseQR(text);
-    if (!p) {
-        showStatus("❌ UNKNOWN QR FORMAT", "var(--danger)");
-        return;
-    }
-    
-    p.raw = text;
-    activeData = p;
-
+    if (!p) { showStatus("❌ INVALID QR", "var(--danger)"); return; }
+    p.raw = text; activeData = p;
     if (currentMode === 'Normal') {
-        duplicates.add(text); // Permanent for session unless cleared
-        sendToSheets(p.skuName, p.batch, 1, "Raw_Scans", "Cases", p.raw);
+        duplicates.add(text);
+        sendToSheets(p.skuName, p.batch, 1, "T&T_Scan", "Cases", p.raw);
         showStatus(`✅ LOGGED: ${p.skuName}`, "var(--success)");
-    } else {
-        openManualEntry(p);
-    }
+        addToHistory(p.skuName, 1, "T&T");
+    } else { openManualEntry(p); }
 }
 
 function openManualEntry(p) {
-    isEditing = true; // Stops laser focus
+    isEditing = true;
     document.getElementById('inputArea').style.display = "block";
     document.getElementById('resultCard').style.display = "none";
-    document.getElementById('inputTitle').innerText = p.skuName + " (" + ((currentMode === 'Breakage') ? "Bottles" : "Cases") + ")";
-    
-    qtyField.value = ""; // Clear it so user can type fresh
-    setTimeout(() => qtyField.focus(), 100);
-
+    document.getElementById('inputTitle').innerText = p.skuName;
+    qtyField.value = ""; setTimeout(() => qtyField.focus(), 100);
     const sub = document.getElementById('subButtons');
+    sub.innerHTML = `<button class="btn btn-main" onclick="submitFinal('FG1_WH', 'Cases')">FG1</button><button class="btn btn-main" onclick="submitFinal('FG2_WH', 'Cases')">FG2</button>`;
     if (currentMode === 'Breakage') {
         sub.innerHTML = `<button class="btn" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Breakage_WH', 'Bottles')">SAVE BREAKAGE</button>`;
-    } else if (currentMode === 'Short_Excess') {
-        sub.innerHTML = `<button class="btn" style="background:var(--primary)" onclick="submitFinal('Short_WH', 'Cases')">SHORT (-)</button><button class="btn" style="background:var(--success)" onclick="submitFinal('Excess_WH', 'Cases')">EXCESS (+)</button>`;
-    } else if (currentMode === 'Putaway') {
-        sub.innerHTML = `<button class="btn btn-main" onclick="submitFinal('FG1_WH', 'Cases')">FG1</button><button class="btn btn-main" onclick="submitFinal('FG2_WH', 'Cases')">FG2</button>`;
     }
 }
 
 function submitFinal(dest, unit) {
     let qty = qtyField.value || 1;
     sendToSheets(activeData.skuName, activeData.batch, qty, dest, unit, activeData.raw);
+    addToHistory(activeData.skuName, qty, dest);
     cancelInput();
-    showStatus(`✅ SAVED ${qty} ${unit}`, "var(--success)");
+}
+
+function addToHistory(sku, qty, dest) {
+    sessionHistory.unshift({sku, qty, dest});
+    if(sessionHistory.length > 5) sessionHistory.pop();
+    document.getElementById('logBody').innerHTML = sessionHistory.map(item => `<tr><td style="text-align:left">${item.sku}</td><td><span class="count-badge">${item.qty}</span></td><td style="text-align:right">${item.dest}</td></tr>`).join('');
 }
 
 function sendToSheets(sku, batch, qty, dest, unit, raw) {
-    const data = { skuName: sku, batch: batch, cases: qty, destination: dest, unit: unit, fullQR: raw };
-    fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(data) });
+    fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify({ skuName: sku, batch: batch, cases: qty, destination: dest, unit: unit, fullQR: raw, mode: currentMode }) });
 }
 
-function showStatus(msg, color) {
-    const st = document.getElementById('statusText');
-    st.innerText = msg;
-    st.style.color = color;
-}
+function showStatus(msg, color) { document.getElementById('statusText').innerText = msg; document.getElementById('statusText').style.color = color; }
 
 function parseQR(val) {
     if (val.length < 25) return null;
-    let s = val.substring(3, 15);
-    let b = val.substring(15, 19);
-    let d = val.substring(21, 25);
+    let s = val.substring(3, 15), b = val.substring(15, 19), d = val.substring(21, 25);
     return {skuName: skuMapping[s] || "UNK", batch: `41-${b}-${d.startsWith('0')?d.substring(1):d}`};
 }
 
@@ -145,7 +135,6 @@ function cancelInput() {
     isEditing = false;
     document.getElementById('inputArea').style.display = "none";
     document.getElementById('resultCard').style.display = "block";
-    qtyField.value = 1;
     forceFocus();
 }
 </script>
