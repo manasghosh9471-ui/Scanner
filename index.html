@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v5.4</title>
+    <title>Warehouse Pro v5.5</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --warning: #FF9500; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, sans-serif; }
@@ -12,6 +12,7 @@
         #reader { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 1px solid #333; margin-bottom: 10px; }
         .btn { border: none; border-radius: 10px; padding: 16px; font-weight: bold; color: white; cursor: pointer; width: 100%; font-size: 14px; margin-top: 8px; }
         .btn-main { background: var(--primary); }
+        .btn-torch { background: #E2B900; color: #000; display: none; } /* Yellow for Torch */
         .btn-danger { background: var(--danger); border: 1px solid #500; }
         input { width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; font-size: 32px; margin: 10px 0; text-align: center; }
         #syncStatus { background: #1a1a1a; padding: 8px; border-radius: 20px; font-size: 11px; margin-bottom: 10px; text-align: center; border: 1px solid #333; }
@@ -22,7 +23,6 @@
         .mode-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
         table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; color: #aaa; }
         td { padding: 8px; border-top: 1px solid #333; }
-        /* Duplicate Flash Effect */
         .dupe-flash { position: absolute; top:0; left:0; width:100%; height:100%; background: var(--danger); display: flex; align-items: center; justify-content: center; z-index: 10; font-weight: bold; animation: fadeOut 2s forwards; }
         @keyframes fadeOut { 0% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; pointer-events: none; } }
     </style>
@@ -54,7 +54,8 @@
     </div>
 
     <button id="camBtn" class="btn btn-main" onclick="toggleCamera()">🔘 START CAMERA</button>
-    <button class="btn" style="background:#222; color:#ff3b30; font-size:11px;" onclick="clearSession()">🗑️ RESET ALL (CLEARS DUPLICATES)</button>
+    <button id="torchBtn" class="btn btn-torch" onclick="toggleTorch()">🔦 TORCH ON/OFF</button>
+    <button class="btn" style="background:#222; color:#ff3b30; font-size:11px;" onclick="clearSession()">🗑️ RESET ALL</button>
     
     <table><tbody id="scanTableBody"></tbody></table>
 
@@ -63,7 +64,7 @@
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script>
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycby6lYCgFNMBky5TLxukv7GQ-PC45wCmaNNOcm8kE9mL4SoooplGfLKYXr7FMupD3iFQ9A/exec";
-let html5QrCode, isScanning = false, isProcessing = false, currentMode = 'Normal';
+let html5QrCode, isScanning = false, isProcessing = false, torchOn = false, currentMode = 'Normal';
 let queue = JSON.parse(localStorage.getItem('whQueue')) || [];
 let duplicates = new Set(JSON.parse(localStorage.getItem('whDupes')) || []);
 let activeData = null;
@@ -109,10 +110,16 @@ function setMode(mode, btn) {
 }
 
 async function toggleCamera() {
-    if(isScanning) { await html5QrCode.stop(); isScanning = false; return; }
+    const tBtn = document.getElementById('torchBtn');
+    if(isScanning) { 
+        await html5QrCode.stop(); 
+        isScanning = false; 
+        tBtn.style.display = "none";
+        torchOn = false;
+        return; 
+    }
     html5QrCode = new Html5Qrcode("reader");
     await html5QrCode.start({facingMode:"environment"}, {fps:20, qrbox:250}, (text) => {
-        // --- SOFT DUPLICATE CHECK ---
         if(duplicates.has(text) && currentMode === 'Normal') {
             triggerDuplicateWarning();
             return;
@@ -124,6 +131,19 @@ async function toggleCamera() {
         handleScanMatch(p);
     });
     isScanning = true;
+    // Show torch button only if device supports it
+    setTimeout(() => {
+        if (html5QrCode.getRunningTrackCapabilities().torch) {
+            tBtn.style.display = "block";
+        }
+    }, 1000);
+}
+
+function toggleTorch() {
+    torchOn = !torchOn;
+    html5QrCode.applyVideoConstraints({
+        advanced: [{torch: torchOn}]
+    }).catch(e => console.error("Torch not supported"));
 }
 
 function triggerDuplicateWarning() {
@@ -136,7 +156,9 @@ function triggerDuplicateWarning() {
 function handleScanMatch(p) {
     const inputArea = document.getElementById('inputArea');
     const subButtons = document.getElementById('subButtons');
+    const tBtn = document.getElementById('torchBtn');
     subButtons.innerHTML = "";
+    tBtn.style.display = "none";
     
     if(currentMode === 'Normal') {
         duplicates.add(p.raw);
@@ -161,7 +183,9 @@ function handleScanMatch(p) {
                 <button class="btn btn-main" onclick="submitFinal('FG1_WH', 'Cases')">FG1 WH</button>
                 <button class="btn btn-main" onclick="submitFinal('FG2_WH', 'Cases')">FG2 WH</button>`;
         }
-        if(isScanning) { html5QrCode.stop().then(() => { isScanning = false; }); }
+        if(isScanning) { 
+            html5QrCode.stop().then(() => { isScanning = false; torchOn = false; }); 
+        }
     }
 }
 
