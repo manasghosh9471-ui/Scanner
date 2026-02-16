@@ -3,33 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v5.5</title>
+    <title>Warehouse Pro v5.6</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --warning: #FF9500; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, sans-serif; }
         body { background: var(--bg); color: var(--text); padding: 10px; padding-bottom: 90px; }
-        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; position: relative; overflow: hidden; }
-        #reader { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 1px solid #333; margin-bottom: 10px; }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; position: relative; }
+        /* Optimized Reader View */
+        #reader { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 2px solid #444; margin-bottom: 10px; }
         .btn { border: none; border-radius: 10px; padding: 16px; font-weight: bold; color: white; cursor: pointer; width: 100%; font-size: 14px; margin-top: 8px; }
-        .btn-main { background: var(--primary); }
-        .btn-torch { background: #E2B900; color: #000; display: none; } /* Yellow for Torch */
-        .btn-danger { background: var(--danger); border: 1px solid #500; }
+        .btn-main { background: var(--primary); box-shadow: 0 4px 15px rgba(0,122,255,0.3); }
+        .btn-torch { background: #E2B900; color: #000; display: none; }
         input { width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: white; font-size: 32px; margin: 10px 0; text-align: center; }
         #syncStatus { background: #1a1a1a; padding: 8px; border-radius: 20px; font-size: 11px; margin-bottom: 10px; text-align: center; border: 1px solid #333; }
-        .online { color: var(--success); }
-        .offline { color: var(--danger); }
         .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
         .mode-btn { padding: 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: #888; font-size: 11px; font-weight: bold; }
         .mode-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
         table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; color: #aaa; }
         td { padding: 8px; border-top: 1px solid #333; }
         .dupe-flash { position: absolute; top:0; left:0; width:100%; height:100%; background: var(--danger); display: flex; align-items: center; justify-content: center; z-index: 10; font-weight: bold; animation: fadeOut 2s forwards; }
-        @keyframes fadeOut { 0% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; pointer-events: none; } }
+        @keyframes fadeOut { 0% { opacity: 1; } 100% { opacity: 0; pointer-events: none; } }
     </style>
 </head>
 <body>
 
-    <div id="syncStatus">● INITIALIZING...</div>
+    <div id="syncStatus">● READY</div>
 
     <div class="mode-grid">
         <button class="mode-btn active" onclick="setMode('Normal', this)">📦 SCAN</button>
@@ -42,7 +40,7 @@
 
     <div id="resultCard" class="card">
         <div id="modeLabel" style="background:var(--primary); font-size:10px; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:5px;">MODE: NORMAL</div>
-        <div id="statusText">Ready to Scan</div>
+        <div id="statusText">Focus camera on barcode</div>
         <div id="flashOverlay"></div>
     </div>
 
@@ -50,15 +48,12 @@
         <h2 id="inputTitle" style="color:var(--primary)">Quantity</h2>
         <input type="number" id="qtyInput" value="1" inputmode="numeric">
         <div id="subButtons" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;"></div>
-        <button class="btn btn-danger" onclick="cancelInput()" style="background:transparent; color:#888;">❌ CANCEL</button>
+        <button class="btn" onclick="cancelInput()" style="background:transparent; color:#888;">❌ CANCEL</button>
     </div>
 
     <button id="camBtn" class="btn btn-main" onclick="toggleCamera()">🔘 START CAMERA</button>
     <button id="torchBtn" class="btn btn-torch" onclick="toggleTorch()">🔦 TORCH ON/OFF</button>
-    <button class="btn" style="background:#222; color:#ff3b30; font-size:11px;" onclick="clearSession()">🗑️ RESET ALL</button>
     
-    <table><tbody id="scanTableBody"></tbody></table>
-
 <textarea id="skuInput" style="display:none;">{"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH","1160W1799GNN":"EXN","1160W1799GPP":"EXP","1160W1799GQQ":"EXQ"}</textarea>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
@@ -78,35 +73,21 @@ function saveState() {
 
 function updateSyncUI() {
     const status = document.getElementById('syncStatus');
-    if (navigator.onLine) {
-        status.innerHTML = `● ONLINE: ${queue.length} PENDING`;
-        status.className = "online";
-        if (queue.length > 0 && !isProcessing) processQueue();
-    } else {
-        status.innerHTML = `● OFFLINE: ${queue.length} SAVED`;
-        status.className = "offline";
-    }
+    status.innerHTML = navigator.onLine ? `● ONLINE: ${queue.length} PENDING` : `● OFFLINE: ${queue.length} SAVED`;
+    status.style.color = navigator.onLine ? "#34C759" : "#FF3B30";
+    if (navigator.onLine && queue.length > 0 && !isProcessing) processQueue();
 }
 
 async function processQueue() {
     if (!navigator.onLine || queue.length === 0 || isProcessing) return;
     isProcessing = true;
-    const item = queue[0];
     try {
-        await fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(item) });
+        await fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(queue[0]) });
         queue.shift();
         saveState();
     } catch (e) { console.error("Sync error"); }
     isProcessing = false;
     if(queue.length > 0) setTimeout(processQueue, 1000);
-}
-
-function setMode(mode, btn) {
-    currentMode = mode;
-    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('modeLabel').innerText = "MODE: " + mode.toUpperCase();
-    cancelInput();
 }
 
 async function toggleCamera() {
@@ -115,11 +96,17 @@ async function toggleCamera() {
         await html5QrCode.stop(); 
         isScanning = false; 
         tBtn.style.display = "none";
-        torchOn = false;
         return; 
     }
     html5QrCode = new Html5Qrcode("reader");
-    await html5QrCode.start({facingMode:"environment"}, {fps:20, qrbox:250}, (text) => {
+    // --- HIGH SENSITIVITY CONFIG ---
+    const config = { 
+        fps: 30, // Increased frame rate
+        qrbox: { width: 280, height: 280 }, // Slightly larger box
+        aspectRatio: 1.0
+    };
+
+    await html5QrCode.start({facingMode:"environment"}, config, (text) => {
         if(duplicates.has(text) && currentMode === 'Normal') {
             triggerDuplicateWarning();
             return;
@@ -131,19 +118,7 @@ async function toggleCamera() {
         handleScanMatch(p);
     });
     isScanning = true;
-    // Show torch button only if device supports it
-    setTimeout(() => {
-        if (html5QrCode.getRunningTrackCapabilities().torch) {
-            tBtn.style.display = "block";
-        }
-    }, 1000);
-}
-
-function toggleTorch() {
-    torchOn = !torchOn;
-    html5QrCode.applyVideoConstraints({
-        advanced: [{torch: torchOn}]
-    }).catch(e => console.error("Torch not supported"));
+    setTimeout(() => { if(html5QrCode.getRunningTrackCapabilities().torch) tBtn.style.display = "block"; }, 1000);
 }
 
 function triggerDuplicateWarning() {
@@ -154,44 +129,30 @@ function triggerDuplicateWarning() {
 }
 
 function handleScanMatch(p) {
-    const inputArea = document.getElementById('inputArea');
-    const subButtons = document.getElementById('subButtons');
-    const tBtn = document.getElementById('torchBtn');
-    subButtons.innerHTML = "";
-    tBtn.style.display = "none";
-    
     if(currentMode === 'Normal') {
         duplicates.add(p.raw);
         addToQueue(p.skuName, p.batch, 1, "Raw_Scans", "Cases", p.raw);
         document.getElementById('statusText').innerHTML = `<b style="color:var(--success)">✅ ${p.skuName} ADDED</b>`;
     } else {
-        inputArea.style.display = "block";
+        document.getElementById('inputArea').style.display = "block";
         document.getElementById('camBtn').style.display = "none";
-        document.getElementById('statusText').innerText = `Editing: ${p.skuName}`;
-        
+        document.getElementById('torchBtn').style.display = "none";
         if(currentMode === 'Breakage') {
             document.getElementById('inputTitle').innerText = "Broken Bottles";
-            subButtons.innerHTML = `<button class="btn btn-main" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Breakage_WH', 'Bottles')">LOG BREAKAGE</button>`;
+            document.getElementById('subButtons').innerHTML = `<button class="btn" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Breakage_WH', 'Bottles')">LOG BREAKAGE</button>`;
         } else if(currentMode === 'Short_Excess') {
             document.getElementById('inputTitle').innerText = "Case Adjustment";
-            subButtons.innerHTML = `
-                <button class="btn btn-warn" onclick="submitFinal('Short_WH', 'Cases')">SHORT (-)</button>
-                <button class="btn btn-main" onclick="submitFinal('Excess_WH', 'Cases')">EXCESS (+)</button>`;
+            document.getElementById('subButtons').innerHTML = `<button class="btn btn-warn" onclick="submitFinal('Short_WH', 'Cases')">SHORT (-)</button><button class="btn btn-main" onclick="submitFinal('Excess_WH', 'Cases')">EXCESS (+)</button>`;
         } else if(currentMode === 'Putaway') {
-            document.getElementById('inputTitle').innerText = "Select Warehouse";
-            subButtons.innerHTML = `
-                <button class="btn btn-main" onclick="submitFinal('FG1_WH', 'Cases')">FG1 WH</button>
-                <button class="btn btn-main" onclick="submitFinal('FG2_WH', 'Cases')">FG2 WH</button>`;
+            document.getElementById('inputTitle').innerText = "Warehouse";
+            document.getElementById('subButtons').innerHTML = `<button class="btn btn-main" onclick="submitFinal('FG1_WH', 'Cases')">FG1</button><button class="btn btn-main" onclick="submitFinal('FG2_WH', 'Cases')">FG2</button>`;
         }
-        if(isScanning) { 
-            html5QrCode.stop().then(() => { isScanning = false; torchOn = false; }); 
-        }
+        if(isScanning) { html5QrCode.stop().then(() => { isScanning = false; }); }
     }
 }
 
 function submitFinal(dest, unit) {
-    let qty = document.getElementById('qtyInput').value;
-    addToQueue(activeData.skuName, activeData.batch, qty, dest, unit, activeData.raw);
+    addToQueue(activeData.skuName, activeData.batch, document.getElementById('qtyInput').value, dest, unit, activeData.raw);
     cancelInput();
 }
 
@@ -207,6 +168,11 @@ function updateTable() {
     ).join('');
 }
 
+function toggleTorch() {
+    torchOn = !torchOn;
+    html5QrCode.applyVideoConstraints({ advanced: [{torch: torchOn}] });
+}
+
 function cancelInput() {
     document.getElementById('inputArea').style.display = "none";
     document.getElementById('camBtn').style.display = "block";
@@ -220,7 +186,13 @@ function parseQR(val) {
     return {skuName:skuMapping[s]||"UNK", batch:`41-${b}-${d.startsWith('0')?d.substring(1):d}`};
 }
 
-function clearSession() { if(confirm("Clear everything?")) { queue=[]; duplicates.clear(); saveState(); updateTable(); } }
+function setMode(mode, btn) {
+    currentMode = mode;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('modeLabel').innerText = "MODE: " + mode.toUpperCase();
+    cancelInput();
+}
 
 window.addEventListener('online', updateSyncUI);
 window.addEventListener('offline', updateSyncUI);
