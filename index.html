@@ -3,28 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v6.0</title>
+    <title>Warehouse Pro v6.1</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: sans-serif; }
         body { background: var(--bg); color: var(--text); padding: 10px; text-align: center; }
         .card { background: var(--card); padding: 20px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #333; }
-        /* The Catch Field - now visible for debugging but tiny */
         #hhtCatch { width: 100%; padding: 10px; background: #000; color: #34C759; border: 1px solid #333; border-radius: 5px; margin-bottom: 10px; font-size: 12px; }
         .btn { border: none; border-radius: 10px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 10px; font-size: 15px; }
         .btn-main { background: var(--primary); }
         .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
         .mode-btn { padding: 15px; border-radius: 10px; border: 1px solid #444; background: #222; color: #888; font-weight: bold; }
-        .mode-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
-        #syncStatus { font-size: 12px; margin-bottom: 10px; font-weight: bold; }
-        input[type="number"] { width: 100%; padding: 15px; border-radius: 8px; background: #000; color: white; font-size: 35px; text-align: center; border: 1px solid var(--primary); margin: 15px 0; }
+        .mode-btn.active { background: var(--primary); color: white; }
+        input[type="number"] { width: 100%; padding: 15px; border-radius: 8px; background: #222; color: white; font-size: 40px; text-align: center; border: 2px solid var(--primary); margin: 15px 0; outline: none; }
+        input[type="number"]:focus { background: #333; border-color: var(--success); }
     </style>
 </head>
 <body onclick="forceFocus()">
 
-    <div id="syncStatus" style="color:var(--success)">● SYSTEM ACTIVE</div>
-
-    <input type="text" id="hhtCatch" placeholder="Scan will appear here..." autofocus autocomplete="off">
+    <div id="syncStatus" style="color:var(--success); font-size: 12px; margin-bottom: 5px;">● HHT READY</div>
+    <input type="text" id="hhtCatch" placeholder="Laser Input Active..." autofocus autocomplete="off">
 
     <div class="mode-grid">
         <button class="mode-btn active" onclick="setMode('Normal', this)">📦 SCAN</button>
@@ -34,47 +32,48 @@
     </div>
 
     <div id="resultCard" class="card">
-        <div id="statusText" style="font-size: 18px; color: #888;">READY FOR HHT TRIGGER</div>
+        <div id="statusText" style="font-size: 18px; color: #888;">READY FOR SCAN</div>
     </div>
 
     <div id="inputArea" style="display:none;" class="card">
-        <h2 id="inputTitle" style="color:var(--primary)">Quantity</h2>
+        <h2 id="inputTitle" style="color:var(--primary)">Enter Quantity</h2>
         <input type="number" id="qtyInput" value="1" inputmode="numeric">
         <div id="subButtons" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
-        <button class="btn" onclick="cancelInput()" style="background:#333;">❌ CANCEL</button>
+        <button class="btn" onclick="cancelInput()" style="background:#333; margin-top: 20px;">❌ CANCEL</button>
     </div>
 
 <script>
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycby6lYCgFNMBky5TLxukv7GQ-PC45wCmaNNOcm8kE9mL4SoooplGfLKYXr7FMupD3iFQ9A/exec";
-let currentMode = 'Normal', activeData = null;
+let currentMode = 'Normal', activeData = null, isEditing = false;
 let duplicates = new Set();
 const skuMapping = {"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH","1160W1799GNN":"EXN","1160W1799GPP":"EXP","1160W1799GQQ":"EXQ"};
 
 const catchField = document.getElementById('hhtCatch');
+const qtyField = document.getElementById('qtyInput');
 
-// 1. Force focus constantly
-function forceFocus() { catchField.focus(); }
-setInterval(forceFocus, 500);
+// 1. SMART FOCUS: Only focus laser if NOT editing
+function forceFocus() { if(!isEditing) catchField.focus(); }
+setInterval(forceFocus, 600);
 
-// 2. LIVE LISTENER: Detects text without needing "Enter"
 catchField.addEventListener('input', (e) => {
     let val = e.target.value;
-    // Your QR codes seem to be 30+ characters. We trigger once it's long enough.
     if (val.length >= 25) { 
         processScan(val);
-        e.target.value = ""; // Clear for next scan
+        e.target.value = ""; 
     }
 });
 
 function processScan(text) {
+    // HARD DUPLICATE BLOCKER
     if (duplicates.has(text) && currentMode === 'Normal') {
-        showStatus("⚠️ DUPLICATE BLOCKED", "var(--danger)");
+        showStatus("⚠️ DUPLICATE - ALREADY SCANNED", "var(--danger)");
+        if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
         return;
     }
 
     let p = parseQR(text);
     if (!p) {
-        showStatus("❌ INVALID QR FORMAT", "var(--danger)");
+        showStatus("❌ UNKNOWN QR FORMAT", "var(--danger)");
         return;
     }
     
@@ -82,23 +81,26 @@ function processScan(text) {
     activeData = p;
 
     if (currentMode === 'Normal') {
-        duplicates.add(text);
+        duplicates.add(text); // Permanent for session unless cleared
         sendToSheets(p.skuName, p.batch, 1, "Raw_Scans", "Cases", p.raw);
         showStatus(`✅ LOGGED: ${p.skuName}`, "var(--success)");
-        setTimeout(() => duplicates.delete(text), 5000);
     } else {
         openManualEntry(p);
     }
 }
 
 function openManualEntry(p) {
+    isEditing = true; // Stops laser focus
     document.getElementById('inputArea').style.display = "block";
     document.getElementById('resultCard').style.display = "none";
-    document.getElementById('inputTitle').innerText = (currentMode === 'Breakage') ? "Bottle Count" : "Case Count";
+    document.getElementById('inputTitle').innerText = p.skuName + " (" + ((currentMode === 'Breakage') ? "Bottles" : "Cases") + ")";
     
+    qtyField.value = ""; // Clear it so user can type fresh
+    setTimeout(() => qtyField.focus(), 100);
+
     const sub = document.getElementById('subButtons');
     if (currentMode === 'Breakage') {
-        sub.innerHTML = `<button class="btn" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Breakage_WH', 'Bottles')">LOG BREAKAGE</button>`;
+        sub.innerHTML = `<button class="btn" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Breakage_WH', 'Bottles')">SAVE BREAKAGE</button>`;
     } else if (currentMode === 'Short_Excess') {
         sub.innerHTML = `<button class="btn" style="background:var(--primary)" onclick="submitFinal('Short_WH', 'Cases')">SHORT (-)</button><button class="btn" style="background:var(--success)" onclick="submitFinal('Excess_WH', 'Cases')">EXCESS (+)</button>`;
     } else if (currentMode === 'Putaway') {
@@ -107,7 +109,7 @@ function openManualEntry(p) {
 }
 
 function submitFinal(dest, unit) {
-    let qty = document.getElementById('qtyInput').value;
+    let qty = qtyField.value || 1;
     sendToSheets(activeData.skuName, activeData.batch, qty, dest, unit, activeData.raw);
     cancelInput();
     showStatus(`✅ SAVED ${qty} ${unit}`, "var(--success)");
@@ -115,19 +117,16 @@ function submitFinal(dest, unit) {
 
 function sendToSheets(sku, batch, qty, dest, unit, raw) {
     const data = { skuName: sku, batch: batch, cases: qty, destination: dest, unit: unit, fullQR: raw };
-    fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(data) })
-    .catch(() => { console.log("Offline - check connection"); });
+    fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(data) });
 }
 
 function showStatus(msg, color) {
     const st = document.getElementById('statusText');
     st.innerText = msg;
     st.style.color = color;
-    if(navigator.vibrate) navigator.vibrate(100);
 }
 
 function parseQR(val) {
-    // Basic validation to ensure it's your QR format
     if (val.length < 25) return null;
     let s = val.substring(3, 15);
     let b = val.substring(15, 19);
@@ -143,9 +142,10 @@ function setMode(mode, btn) {
 }
 
 function cancelInput() {
+    isEditing = false;
     document.getElementById('inputArea').style.display = "none";
     document.getElementById('resultCard').style.display = "block";
-    document.getElementById('qtyInput').value = 1;
+    qtyField.value = 1;
     forceFocus();
 }
 </script>
