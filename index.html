@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v5.3</title>
+    <title>Warehouse Pro v5.4</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --warning: #FF9500; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, sans-serif; }
         body { background: var(--bg); color: var(--text); padding: 10px; padding-bottom: 90px; }
-        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; text-align: center; position: relative; overflow: hidden; }
         #reader { width: 100%; border-radius: 15px; overflow: hidden; background: #000; border: 1px solid #333; margin-bottom: 10px; }
         .btn { border: none; border-radius: 10px; padding: 16px; font-weight: bold; color: white; cursor: pointer; width: 100%; font-size: 14px; margin-top: 8px; }
         .btn-main { background: var(--primary); }
@@ -22,6 +22,9 @@
         .mode-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
         table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; color: #aaa; }
         td { padding: 8px; border-top: 1px solid #333; }
+        /* Duplicate Flash Effect */
+        .dupe-flash { position: absolute; top:0; left:0; width:100%; height:100%; background: var(--danger); display: flex; align-items: center; justify-content: center; z-index: 10; font-weight: bold; animation: fadeOut 2s forwards; }
+        @keyframes fadeOut { 0% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; pointer-events: none; } }
     </style>
 </head>
 <body>
@@ -40,6 +43,7 @@
     <div id="resultCard" class="card">
         <div id="modeLabel" style="background:var(--primary); font-size:10px; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:5px;">MODE: NORMAL</div>
         <div id="statusText">Ready to Scan</div>
+        <div id="flashOverlay"></div>
     </div>
 
     <div id="inputArea" style="display:none;" class="card">
@@ -50,7 +54,7 @@
     </div>
 
     <button id="camBtn" class="btn btn-main" onclick="toggleCamera()">🔘 START CAMERA</button>
-    <button class="btn" style="background:#222; color:#ff3b30; font-size:11px;" onclick="clearSession()">🗑️ CLEAR ALL (RESET DUPLICATES)</button>
+    <button class="btn" style="background:#222; color:#ff3b30; font-size:11px;" onclick="clearSession()">🗑️ RESET ALL (CLEARS DUPLICATES)</button>
     
     <table><tbody id="scanTableBody"></tbody></table>
 
@@ -108,17 +112,25 @@ async function toggleCamera() {
     if(isScanning) { await html5QrCode.stop(); isScanning = false; return; }
     html5QrCode = new Html5Qrcode("reader");
     await html5QrCode.start({facingMode:"environment"}, {fps:20, qrbox:250}, (text) => {
+        // --- SOFT DUPLICATE CHECK ---
         if(duplicates.has(text) && currentMode === 'Normal') {
-            alert("⚠️ DUPLICATE BLOCKED\nThis QR has already been scanned.");
+            triggerDuplicateWarning();
             return;
         }
         let p = parseQR(text);
         if(!p) return;
-        p.raw = text; // Keep the full QR data
+        p.raw = text;
         activeData = p;
         handleScanMatch(p);
     });
     isScanning = true;
+}
+
+function triggerDuplicateWarning() {
+    if(window.navigator.vibrate) window.navigator.vibrate(200);
+    const flash = document.getElementById('flashOverlay');
+    flash.innerHTML = '<div class="dupe-flash">⚠️ DUPLICATE BLOCKED</div>';
+    setTimeout(() => { flash.innerHTML = ''; }, 2000);
 }
 
 function handleScanMatch(p) {
@@ -134,6 +146,7 @@ function handleScanMatch(p) {
         inputArea.style.display = "block";
         document.getElementById('camBtn').style.display = "none";
         document.getElementById('statusText').innerText = `Editing: ${p.skuName}`;
+        
         if(currentMode === 'Breakage') {
             document.getElementById('inputTitle').innerText = "Broken Bottles";
             subButtons.innerHTML = `<button class="btn btn-main" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Breakage_WH', 'Bottles')">LOG BREAKAGE</button>`;
@@ -148,7 +161,7 @@ function handleScanMatch(p) {
                 <button class="btn btn-main" onclick="submitFinal('FG1_WH', 'Cases')">FG1 WH</button>
                 <button class="btn btn-main" onclick="submitFinal('FG2_WH', 'Cases')">FG2 WH</button>`;
         }
-        if(isScanning) { html5QrCode.stop(); isScanning = false; }
+        if(isScanning) { html5QrCode.stop().then(() => { isScanning = false; }); }
     }
 }
 
@@ -174,6 +187,7 @@ function cancelInput() {
     document.getElementById('inputArea').style.display = "none";
     document.getElementById('camBtn').style.display = "block";
     document.getElementById('qtyInput').value = 1;
+    document.getElementById('statusText').innerText = "Ready to Scan";
 }
 
 function parseQR(val) {
@@ -182,7 +196,7 @@ function parseQR(val) {
     return {skuName:skuMapping[s]||"UNK", batch:`41-${b}-${d.startsWith('0')?d.substring(1):d}`};
 }
 
-function clearSession() { if(confirm("Clear duplicates and queue?")) { queue=[]; duplicates.clear(); saveState(); updateTable(); } }
+function clearSession() { if(confirm("Clear everything?")) { queue=[]; duplicates.clear(); saveState(); updateTable(); } }
 
 window.addEventListener('online', updateSyncUI);
 window.addEventListener('offline', updateSyncUI);
