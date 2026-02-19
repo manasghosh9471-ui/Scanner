@@ -3,17 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v7.7</title>
+    <title>Warehouse Pro v7.8</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: sans-serif; }
         body { background: var(--bg); color: var(--text); padding: 10px; text-align: center; }
         .card { background: var(--card); padding: 20px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #333; }
-        input, select { width: 100%; padding: 12px; border-radius: 8px; background: #222; color: white; border: 1px solid #444; margin: 5px 0; outline: none; font-size: 16px; }
+        input, select { width: 100%; padding: 12px; border-radius: 8px; background: #222; color: white; border: 1px solid #444; margin: 5px 0; outline: none; }
         .btn { border: none; border-radius: 10px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 10px; }
         #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 999; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        #hhtCatch { position: absolute; opacity: 0; pointer-events: none; }
+        
+        /* INFRARED CATCHER - Visible but hidden off-screen to ensure focus works */
+        #hhtCatch { position: absolute; left: -9999px; top: 0; opacity: 0; }
+        
         .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
         .mode-btn { padding: 15px; border-radius: 10px; border: 1px solid #444; background: #222; color: #888; font-weight: bold; font-size: 11px; }
         .mode-btn.active { background: var(--primary); color: white; }
@@ -25,20 +28,20 @@
     <div id="loginOverlay">
         <div class="card" style="width: 100%; max-width: 350px;">
             <h2 style="margin-bottom: 20px; color: var(--primary);">System Login</h2>
-            <input type="text" id="userNameInput" placeholder="Your Name">
+            <input type="text" id="userNameInput" placeholder="Worker Name">
             <input type="password" id="userPassInput" placeholder="Password (123)" inputmode="numeric">
-            <button class="btn" style="background: var(--success);" onclick="attemptLogin()">LOGIN</button>
+            <button class="btn" style="background: var(--success); width: 100%;" onclick="attemptLogin()">START SCANNING</button>
         </div>
     </div>
 
     <div id="mainApp" style="display: none;">
-        <div id="syncBadge" style="font-size: 10px; color: var(--success); margin-bottom: 10px;">● LOGGED IN: <span id="displayUser"></span></div>
-        <input type="text" id="hhtCatch" autofocus autocomplete="off">
+        <div id="syncBadge" style="font-size: 10px; color: var(--success); margin-bottom: 10px;">● LASER ACTIVE | USER: <span id="displayUser"></span></div>
+        
+        <input type="text" id="hhtCatch" autocomplete="off">
 
         <div id="reader"></div>
         <div style="display: flex; gap: 5px; margin-bottom: 10px;">
-            <button class="btn" style="background: #444; flex: 1; padding: 10px;" onclick="toggleCamera()">📷 Camera</button>
-            <button id="torchBtn" class="btn" style="background: #444; flex: 1; padding: 10px; display: none;" onclick="toggleTorch()">🔦 Torch</button>
+            <button class="btn" style="background: #444; flex: 1; padding: 10px;" onclick="toggleCamera()">📷 Use Camera</button>
         </div>
 
         <div class="mode-grid">
@@ -50,8 +53,9 @@
         </div>
 
         <div id="resultCard" class="card">
-            <div id="statusText" style="font-size: 18px; color: #888;">READY FOR SCAN</div>
-            <button id="manualBtn" class="btn" style="background:#333; font-size:12px; margin-top:15px;" onclick="openManualSkuMenu()">⌨️ MANUAL ENTRY (SMUDGED)</button>
+            <div id="statusText" style="font-size: 18px; color: #888;">AIM LASER AT QR</div>
+            <button id="manualBtn" class="btn" style="background:#333; font-size:12px; margin-top:15px;" onclick="openManualSkuMenu()">⌨️ MANUAL ENTRY</button>
+            <button class="btn" style="background:transparent; color:#444; font-size:10px; margin-top:20px;" onclick="location.reload()">🔒 Logout</button>
         </div>
 
         <div id="manualSkuArea" style="display:none;" class="card">
@@ -60,22 +64,22 @@
                 <input type="number" id="mBatch" placeholder="Batch(4)" inputmode="numeric" oninput="limit(this,4)">
                 <input type="number" id="mDate" placeholder="MMYY(4)" inputmode="numeric" oninput="limit(this,4)">
             </div>
-            <input type="number" id="mUnique" placeholder="Case Code (5 Digits)" inputmode="numeric" oninput="limit(this,5)">
-            <button class="btn" style="background:var(--success)" onclick="generateManualQR()">✅ GENERATE & LOG</button>
+            <input type="number" id="mUnique" placeholder="Case Code (5)" inputmode="numeric" oninput="limit(this,5)">
+            <button class="btn" style="background:var(--success)" onclick="generateManualQR()">✅ SAVE</button>
             <button class="btn" onclick="cancelInput()" style="background:#333">CANCEL</button>
         </div>
 
         <div id="inputArea" style="display:none;" class="card">
-            <h2 id="inputTitle" style="color:var(--primary)">Quantity</h2>
+            <h2 id="inputTitle" style="color:var(--primary)">Qty</h2>
             <input type="number" id="qtyInput" value="1" inputmode="numeric" style="font-size:40px; text-align:center;">
             <div id="subButtons" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
-            <button class="btn" onclick="cancelInput()" style="background:#333; margin-top: 20px;">❌ CANCEL</button>
+            <button class="btn" onclick="cancelInput()" style="background:#333; margin-top: 20px;">CANCEL</button>
         </div>
     </div>
 
 <script>
 const GOOGLE_URL = "PASTE_YOUR_LINK_HERE";
-let currentMode = 'Normal', activeData = null, isEditing = false, currentUser = "", html5QrCode = null, isTorchOn = false;
+let currentMode = 'Normal', activeData = null, isEditing = false, currentUser = "", html5QrCode = null;
 let duplicates = new Set();
 
 const skuMapping = {"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH","1160W1799GNN":"EXN","1160W1799GPP":"EXP","1160W1799GQQ":"EXQ"};
@@ -89,12 +93,26 @@ function attemptLogin() {
         document.getElementById('loginOverlay').style.display = 'none';
         document.getElementById('mainApp').style.display = 'block';
         document.getElementById('displayUser').innerText = n.toUpperCase();
-        forceFocus();
-    } else { alert("Wrong Password!"); }
+        setTimeout(forceFocus, 500); // Trigger Laser Ready
+    } else { alert("Login Error"); }
 }
 
-function forceFocus() { if(!isEditing && currentUser) document.getElementById('hhtCatch').focus(); }
-setInterval(forceFocus, 600);
+// CRITICAL FOR INFRARED: Keep input field focused
+function forceFocus() { 
+    const catchField = document.getElementById('hhtCatch');
+    if(!isEditing && currentUser && document.activeElement !== catchField) {
+        catchField.focus();
+    }
+}
+setInterval(forceFocus, 300); // Rapid check for Laser focus
+
+document.getElementById('hhtCatch').addEventListener('input', (e) => {
+    if (e.target.value.length >= 25) { 
+        processScan(e.target.value); 
+        e.target.value = ""; 
+    }
+});
+
 function limit(el, m) { if(el.value.length > m) el.value = el.value.slice(0,m); }
 
 window.onload = () => {
@@ -105,26 +123,17 @@ window.onload = () => {
     });
 };
 
-document.getElementById('hhtCatch').addEventListener('input', (e) => {
-    if (e.target.value.length >= 25) { processScan(e.target.value); e.target.value = ""; }
-});
-
 async function toggleCamera() {
     const readerDiv = document.getElementById('reader');
     if (html5QrCode && html5QrCode.isScanning) {
         await html5QrCode.stop(); readerDiv.style.display = 'none';
-        document.getElementById('torchBtn').style.display = 'none';
     } else {
+        isEditing = true; // Block Infrared focus while camera is on
         readerDiv.style.display = 'block';
         html5QrCode = new Html5Qrcode("reader");
         await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, 
-        (text) => { processScan(text); toggleCamera(); });
-        document.getElementById('torchBtn').style.display = 'inline-block';
+        (text) => { processScan(text); toggleCamera(); isEditing = false; });
     }
-}
-
-async function toggleTorch() {
-    if (html5QrCode) { isTorchOn = !isTorchOn; await html5QrCode.applyVideoConstraints({ advanced: [{ torch: isTorchOn }] }); }
 }
 
 function openManualSkuMenu() {
@@ -135,7 +144,7 @@ function openManualSkuMenu() {
 function generateManualQR() {
     const sku = document.getElementById('skuSelect').value, bat = document.getElementById('mBatch').value, 
           dat = document.getElementById('mDate').value, uni = document.getElementById('mUnique').value;
-    if (bat.length !== 4 || dat.length !== 4 || uni.length !== 5) { alert("Error in digits!"); return; }
+    if (bat.length !== 4 || dat.length !== 4 || uni.length !== 5) { alert("Check Digits!"); return; }
     processScan(`890${sku}${bat}${dat}L6${uni}`);
     document.getElementById('mBatch').value = ""; document.getElementById('mDate').value = ""; document.getElementById('mUnique').value = "";
     cancelInput();
@@ -144,7 +153,7 @@ function generateManualQR() {
 function processScan(t) {
     if (duplicates.has(t) && currentMode === 'Normal') { showStatus("⚠️ DUPLICATE", "var(--danger)"); return; }
     let p = parseQR(t);
-    if (!p) { showStatus("❌ INVALID QR", "var(--danger)"); return; }
+    if (!p) { showStatus("❌ INVALID SCAN", "var(--danger)"); return; }
     p.raw = t; activeData = p;
     if (currentMode === 'Normal') {
         duplicates.add(t); queueData(p.skuName, p.batch, 1, "Raw_Scans", "Cases", p.raw);
@@ -153,17 +162,18 @@ function processScan(t) {
 }
 
 function openManualEntry(p) {
-    isEditing = true; document.getElementById('inputArea').style.display = "block";
+    isEditing = true; 
+    document.getElementById('inputArea').style.display = "block";
     document.getElementById('resultCard').style.display = "none";
     document.getElementById('inputTitle').innerText = p.skuName;
     document.getElementById('qtyInput').value = "";
     const sub = document.getElementById('subButtons');
     if (currentMode === 'Dispatch') {
-        sub.innerHTML = `<button class="btn" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Dispatch_WH', 'Dispatch')">CONFIRM DISPATCH</button>`;
+        sub.innerHTML = `<button class="btn" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Dispatch_WH', 'Dispatch')">DISPATCH</button>`;
     } else if (currentMode === 'Putaway') {
-        sub.innerHTML = `<button class="btn btn-main" style="background:var(--primary)" onclick="submitFinal('FG1_WH', 'Putaway')">FG1</button><button class="btn btn-main" style="background:var(--primary)" onclick="submitFinal('FG2_WH', 'Putaway')">FG2</button>`;
+        sub.innerHTML = `<button class="btn" style="background:var(--primary)" onclick="submitFinal('FG1_WH', 'Putaway')">FG1</button><button class="btn" style="background:var(--primary)" onclick="submitFinal('FG2_WH', 'Putaway')">FG2</button>`;
     } else if (currentMode === 'Breakage') {
-        sub.innerHTML = `<button class="btn" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Breakage_WH', 'Breakage')">SAVE BREAKAGE</button>`;
+        sub.innerHTML = `<button class="btn" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Breakage_WH', 'Breakage')">LOG BREAKAGE</button>`;
     } else {
         sub.innerHTML = `<button class="btn" style="background:var(--primary)" onclick="submitFinal('Short_WH', 'Short')">SHORT</button><button class="btn" style="background:var(--success)" onclick="submitFinal('Excess_WH', 'Excess')">EXCESS</button>`;
     }
@@ -181,7 +191,13 @@ function setMode(m, b) {
     b.classList.add('active'); document.getElementById('manualBtn').style.display = (m === 'Normal') ? 'block' : 'none';
 }
 
-function cancelInput() { isEditing = false; document.getElementById('inputArea').style.display = "none"; document.getElementById('manualSkuArea').style.display = "none"; document.getElementById('resultCard').style.display = "block"; forceFocus(); }
+function cancelInput() { 
+    isEditing = false; 
+    document.getElementById('inputArea').style.display = "none"; 
+    document.getElementById('manualSkuArea').style.display = "none"; 
+    document.getElementById('resultCard').style.display = "block"; 
+    forceFocus(); 
+}
 
 function parseQR(v) {
     if (v.length < 25) return null;
