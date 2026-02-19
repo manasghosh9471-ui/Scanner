@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v8.7</title>
+    <title>Warehouse Pro v8.8</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: sans-serif; }
@@ -19,7 +19,8 @@
         .sub-mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 15px; display: none; }
         .sub-btn { padding: 8px; font-size: 10px; border-radius: 5px; background: #333; color: #aaa; border: 1px solid #444; }
         .sub-btn.active { background: var(--success); color: white; border-color: var(--success); }
-        label { display: block; text-align: left; font-size: 11px; color: #888; margin-top: 5px; margin-left: 5px; }
+        .batch-row { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 5px; }
+        label { display: block; text-align: left; font-size: 10px; color: #888; margin-top: 8px; margin-left: 5px; text-transform: uppercase; }
     </style>
 </head>
 <body onclick="forceFocus()">
@@ -56,7 +57,7 @@
         </div>
 
         <div class="card">
-            <label>SKU NAME</label>
+            <label>SKU Name</label>
             <select id="manSku">
                 <option value="">-- Select SKU --</option>
                 <option value="RSP">RSP</option><option value="BPFN">BPFN</option><option value="IBKP">IBKP</option>
@@ -73,11 +74,23 @@
                 <option value="EXN">EXN</option><option value="EXP">EXP</option><option value="EXQ">EXQ</option>
             </select>
             
-            <label>BATCH NO</label>
-            <input type="text" id="manBatch" placeholder="41-XXXX-MMYY">
+            <div class="batch-row">
+                <div>
+                    <label>Batch (4)</label>
+                    <input type="number" id="bat4" placeholder="0455" inputmode="numeric">
+                </div>
+                <div>
+                    <label>MMYY</label>
+                    <input type="number" id="batDate" placeholder="0226" inputmode="numeric">
+                </div>
+                <div>
+                    <label>Unique (5)</label>
+                    <input type="number" id="batUnique" placeholder="00282" inputmode="numeric">
+                </div>
+            </div>
             
-            <label>QUANTITY (CASES)</label>
-            <input type="number" id="manQty" placeholder="Enter Qty" inputmode="numeric">
+            <label>Quantity</label>
+            <input type="number" id="manQty" placeholder="Enter Cases" inputmode="numeric">
             
             <button class="btn" style="background:var(--success)" onclick="submitFinal()">✅ CONFIRM & SAVE</button>
         </div>
@@ -139,10 +152,12 @@ function updateTargetLabel() {
 
 function parseQR(v) {
     if (v.length < 25) return null;
-    let skuKey = v.substring(3, 15);
-    let batchNo = v.substring(15, 19);
-    let monthYear = v.substring(21, 25);
-    return { skuName: skuMapping[skuKey] || "UNK", batch: `41-${batchNo}-${monthYear}` };
+    return {
+        skuName: skuMapping[v.substring(3, 15)] || "UNK",
+        b4: v.substring(15, 19),
+        mmyy: v.substring(21, 25),
+        uni: v.substring(v.length - 5)
+    };
 }
 
 function processScan(t) {
@@ -150,10 +165,12 @@ function processScan(t) {
     if (!p) return;
     currentRawQR = t;
     document.getElementById('manSku').value = p.skuName;
-    document.getElementById('manBatch').value = p.batch;
+    document.getElementById('bat4').value = p.b4;
+    document.getElementById('batDate').value = p.mmyy;
+    document.getElementById('batUnique').value = p.uni;
     
     if (currentMode === 'Normal') {
-        submitFinal(1); // Auto save for Normal mode
+        submitFinal(1);
     } else {
         showStatus(`SCAN OK: ${p.skuName}`, "var(--primary)");
         document.getElementById('manQty').focus();
@@ -162,23 +179,37 @@ function processScan(t) {
 
 function submitFinal(autoQty = null) {
     let sku = document.getElementById('manSku').value;
-    let bat = document.getElementById('manBatch').value;
+    let b4 = document.getElementById('bat4').value;
+    let my = document.getElementById('batDate').value;
+    let uni = document.getElementById('batUnique').value;
     let q = autoQty || parseFloat(document.getElementById('manQty').value);
     
-    if(!sku || !bat || isNaN(q)) { showStatus("❌ MISSING DATA", "var(--danger)"); return; }
+    if(!sku || !b4 || !my || isNaN(q)) { showStatus("❌ MISSING DATA", "var(--danger)"); return; }
     
-    // Auto-Polarity
+    // Combine into the batch format you need
+    let fullBatch = `41-${b4}-${my}`;
+    
     if(currentMode === 'Dispatch' || currentMode === 'Short_Excess') q = Math.abs(q) * -1;
     else q = Math.abs(q);
 
-    const d = { skuName: sku, batch: bat, cases: q, destination: activeWH, unit: "Cases", fullQR: currentRawQR, userName: currentUser };
+    const d = { 
+        skuName: sku, 
+        batch: fullBatch, 
+        cases: q, 
+        destination: activeWH, 
+        unit: "Cases", 
+        fullQR: currentRawQR === "MANUAL_ENTRY" ? `MANUAL-${sku}-${b4}-${my}-${uni}` : currentRawQR, 
+        userName: currentUser 
+    };
+    
     fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(d) });
     
-    // Reset fields
     document.getElementById('manQty').value = "";
     if (currentMode !== 'Normal') {
         document.getElementById('manSku').value = "";
-        document.getElementById('manBatch').value = "";
+        document.getElementById('bat4').value = "";
+        document.getElementById('batDate').value = "";
+        document.getElementById('batUnique').value = "";
     }
     currentRawQR = "MANUAL_ENTRY";
     showStatus(`✅ SAVED: ${sku} (${q})`, "var(--success)");
