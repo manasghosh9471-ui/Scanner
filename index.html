@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v7.1</title>
+    <title>Warehouse Pro v7.2</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --warning: #FF9500; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: sans-serif; }
-        body { background: var(--bg); color: var(--text); padding: 10px; text-align: center; }
+        body { background: var(--bg); color: var(--text); padding: 10px; text-align: center; overflow-x: hidden; }
         .card { background: var(--card); padding: 20px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #333; }
         #hhtCatch { width: 100%; padding: 10px; background: #000; color: #34C759; border: 1px solid #333; border-radius: 5px; margin-bottom: 10px; font-size: 12px; }
         .btn { border: none; border-radius: 10px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 10px; font-size: 15px; }
@@ -16,6 +17,7 @@
         .mode-btn.active { background: var(--primary); color: white; }
         input { width: 100%; padding: 12px; border-radius: 8px; background: #222; color: white; border: 1px solid #444; margin: 5px 0; outline: none; }
         select { width: 100%; padding: 12px; border-radius: 8px; background: #222; color: white; border: 1px solid var(--primary); margin: 5px 0; font-size: 16px; }
+        #reader { width: 100%; border-radius: 15px; overflow: hidden; margin-bottom: 10px; display: none; }
         #syncBadge { font-size: 10px; padding: 4px 8px; border-radius: 20px; margin-bottom: 10px; display: inline-block; }
     </style>
 </head>
@@ -23,6 +25,12 @@
 
     <div id="syncBadge" style="background: #222; color: var(--success);">● SYSTEM READY</div>
     <input type="text" id="hhtCatch" placeholder="Laser Input Active..." autofocus autocomplete="off">
+
+    <div id="reader"></div>
+    <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+        <button class="btn" style="background: #444; flex: 1; padding: 10px;" onclick="toggleCamera()">📷 Camera</button>
+        <button id="torchBtn" class="btn" style="background: #444; flex: 1; padding: 10px; display: none;" onclick="toggleTorch()">🔦 Torch</button>
+    </div>
 
     <div class="mode-grid">
         <button class="mode-btn active" onclick="setMode('Normal', this)">📦 T&T STOCKS</button>
@@ -41,10 +49,10 @@
         <h3 style="color:var(--primary)">Manual QR Builder</h3>
         <select id="skuSelect"></select>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
-            <input type="number" id="mBatch" placeholder="Batch (4 Digits)" inputmode="numeric" oninput="limit(this,4)">
-            <input type="number" id="mDate" placeholder="MMYY (4 Digits)" inputmode="numeric" oninput="limit(this,4)">
+            <input type="number" id="mBatch" placeholder="Batch(4)" inputmode="numeric" oninput="limit(this,4)">
+            <input type="number" id="mDate" placeholder="MMYY(4)" inputmode="numeric" oninput="limit(this,4)">
         </div>
-        <input type="number" id="mUnique" placeholder="Unique Case Code (5 Digits)" inputmode="numeric" oninput="limit(this,5)">
+        <input type="number" id="mUnique" placeholder="Case Code (5 Digits)" inputmode="numeric" oninput="limit(this,5)">
         <button class="btn" style="background:var(--success)" onclick="generateManualQR()">✅ GENERATE & LOG</button>
         <button class="btn" onclick="cancelInput()" style="background:#333">❌ CANCEL</button>
     </div>
@@ -58,17 +66,15 @@
 
 <script>
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycby6lYCgFNMBky5TLxukv7GQ-PC45wCmaNNOcm8kE9mL4SoooplGfLKYXr7FMupD3iFQ9A/exec";
-let currentMode = 'Normal', activeData = null, isEditing = false, selectedWarehouse = null;
+let currentMode = 'Normal', activeData = null, isEditing = false, html5QrCode = null, isTorchOn = false;
 let duplicates = new Set();
 
 const skuMapping = {"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH","1160W1799GNN":"EXN","1160W1799GPP":"EXP","1160W1799GQQ":"EXQ"};
 const nameToCode = Object.fromEntries(Object.entries(skuMapping).map(([k, v]) => [v, k]));
 
 const catchField = document.getElementById('hhtCatch');
-
 function forceFocus() { if(!isEditing) catchField.focus(); }
 setInterval(forceFocus, 600);
-
 function limit(element, max) { if(element.value.length > max) element.value = element.value.slice(0, max); }
 
 window.onload = () => {
@@ -76,9 +82,7 @@ window.onload = () => {
     const sel = document.getElementById('skuSelect');
     Object.values(skuMapping).sort().forEach(name => {
         let opt = document.createElement('option');
-        opt.value = nameToCode[name];
-        opt.text = name;
-        sel.add(opt);
+        opt.value = nameToCode[name]; opt.text = name; sel.add(opt);
     });
 };
 
@@ -86,6 +90,28 @@ catchField.addEventListener('input', (e) => {
     if (e.target.value.length >= 25) { processScan(e.target.value); e.target.value = ""; }
 });
 
+// --- CAMERA LOGIC ---
+async function toggleCamera() {
+    const readerDiv = document.getElementById('reader');
+    if (html5QrCode && html5QrCode.isScanning) {
+        await html5QrCode.stop(); readerDiv.style.display = 'none';
+        document.getElementById('torchBtn').style.display = 'none';
+    } else {
+        readerDiv.style.display = 'block';
+        html5QrCode = new Html5Qrcode("reader");
+        await html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, 
+        (text) => { processScan(text); toggleCamera(); });
+        document.getElementById('torchBtn').style.display = 'inline-block';
+    }
+}
+
+async function toggleTorch() {
+    if (!html5QrCode) return;
+    isTorchOn = !isTorchOn;
+    await html5QrCode.applyVideoConstraints({ advanced: [{ torch: isTorchOn }] });
+}
+
+// --- LOGIC ---
 function openManualSkuMenu() {
     isEditing = true;
     document.getElementById('manualSkuArea').style.display = 'block';
@@ -99,13 +125,17 @@ function generateManualQR() {
     const unique = document.getElementById('mUnique').value;
 
     if (batch.length !== 4 || date.length !== 4 || unique.length !== 5) {
-        alert("Incorrect Lengths! Batch(4), Date(4), Case Code(5)");
-        return;
+        alert("Incorrect Lengths!"); return;
     }
 
-    // Build standard 25-digit string: 890 + SKU(12) + Batch(4) + Date(4) + L6 + Unique(5)
     const manualFullQR = `890${skuCode}${batch}${date}L6${unique}`;
     processScan(manualFullQR);
+
+    // AUTO-CLEAR FIELDS FOR NEXT USE
+    document.getElementById('mBatch').value = "";
+    document.getElementById('mDate').value = "";
+    document.getElementById('mUnique').value = "";
+    
     cancelInput();
 }
 
@@ -131,13 +161,11 @@ function openManualEntry(p) {
     
     const sub = document.getElementById('subButtons');
     if (currentMode === 'Dispatch') {
-        sub.innerHTML = `<button class="btn" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('${selectedWarehouse}', 'Dispatch')">CONFIRM DISPATCH</button>`;
+        sub.innerHTML = `<button class="btn" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Dispatch_WH', 'Dispatch')">CONFIRM DISPATCH</button>`;
     } else if (currentMode === 'Putaway') {
-        sub.innerHTML = `<button class="btn btn-main" style="background:var(--primary)" onclick="submitFinal('FG1_WH', 'Putaway')">FG1</button><button class="btn btn-main" style="background:var(--primary)" onclick="submitFinal('FG2_WH', 'Putaway')">FG2</button>`;
-    } else if (currentMode === 'Breakage') {
-        sub.innerHTML = `<button class="btn" style="background:var(--danger); grid-column:span 2" onclick="submitFinal('Breakage_WH', 'Breakage')">SAVE</button>`;
-    } else if (currentMode === 'Short_Excess') {
-        sub.innerHTML = `<button class="btn" style="background:var(--primary)" onclick="submitFinal('Short_WH', 'Adjust')">SHORT (-)</button><button class="btn" style="background:var(--success)" onclick="submitFinal('Excess_WH', 'Adjust')">EXCESS (+)</button>`;
+        sub.innerHTML = `<button class="btn" style="background:var(--primary)" onclick="submitFinal('FG1_WH', 'Putaway')">FG1</button><button class="btn" style="background:var(--primary)" onclick="submitFinal('FG2_WH', 'Putaway')">FG2</button>`;
+    } else {
+        sub.innerHTML = `<button class="btn" style="background:var(--primary); grid-column:span 2" onclick="submitFinal('Breakage_WH', 'Other')">SUBMIT</button>`;
     }
 }
 
