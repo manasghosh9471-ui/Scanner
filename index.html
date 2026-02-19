@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v8.5</title>
+    <title>Warehouse Pro v8.6</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: sans-serif; }
@@ -19,6 +19,7 @@
         .sub-mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 15px; display: none; }
         .sub-btn { padding: 8px; font-size: 10px; border-radius: 5px; background: #333; color: #aaa; border: 1px solid #444; }
         .sub-btn.active { background: var(--success); color: white; border-color: var(--success); }
+        #manualEntryArea { display: none; margin-top: 10px; border-top: 1px dashed #444; padding-top: 10px; }
     </style>
 </head>
 <body onclick="forceFocus()">
@@ -60,6 +61,29 @@
             <input type="number" id="qtyInput" inputmode="numeric" style="font-size:40px; text-align:center;">
             <button class="btn" style="background:var(--success)" onclick="submitFinal()">✅ CONFIRM & SAVE</button>
             <button class="btn" onclick="cancelInput()" style="background:#333">CANCEL</button>
+        </div>
+
+        <button onclick="toggleManual()" style="background:none; border:none; color:var(--primary); font-size:12px; text-decoration:underline; margin-top:10px;">⌨️ Damage Barcode? Use Manual Entry</button>
+        
+        <div id="manualEntryArea" class="card">
+            <select id="manSku">
+                <option value="">Select SKU Manually</option>
+                <option value="RSP">RSP</option><option value="BPFN">BPFN</option><option value="IBKP">IBKP</option>
+                <option value="IBKN">IBKN</option><option value="IBKQ">IBKQ</option><option value="OGQ">OGQ</option>
+                <option value="OGN">OGN</option><option value="OGP">OGP</option><option value="HPTN">HPTN</option>
+                <option value="HPTQ">HPTQ</option><option value="RSSQ">RSSQ</option><option value="RSSP">RSSP</option>
+                <option value="HPP">HPP</option><option value="BPP">BPP</option><option value="BPQ">BPQ</option>
+                <option value="BPRP">BPRP</option><option value="BPFP">BPFP</option><option value="RSSN">RSSN</option>
+                <option value="RSDQ">RSDQ</option><option value="RSDP">RSDP</option><option value="RSDN">RSDN</option>
+                <option value="BPFQ">BPFQ</option><option value="HPQ">HPQ</option><option value="HPN">HPN</option>
+                <option value="BPN">BPN</option><option value="BPRQ">BPRQ</option><option value="BPRN">BPRN</option>
+                <option value="RSQ">RSQ</option><option value="RSN">RSN</option><option value="IBP">IBP</option>
+                <option value="IBN">IBN</option><option value="IBQ">IBQ</option><option value="RSH">RSH</option>
+                <option value="EXN">EXN</option><option value="EXP">EXP</option><option value="EXQ">EXQ</option>
+            </select>
+            <input type="text" id="manBatch" placeholder="Format: 41-XXXX-MMYY">
+            <input type="number" id="manQty" placeholder="Quantity">
+            <button class="btn" style="background:var(--primary)" onclick="submitManual()">SAVE MANUAL ENTRY</button>
         </div>
     </div>
 
@@ -112,19 +136,18 @@ function updateTargetLabel() {
     document.getElementById('activeTarget').innerText = `MODE: ${currentMode} | TARGET: ${activeWH.replace('_WH','')}`;
 }
 
-// UPDATED PARSING TO SKIP DAY (DD)
+function toggleManual() {
+    let div = document.getElementById('manualEntryArea');
+    div.style.display = div.style.display === 'block' ? 'none' : 'block';
+    isEditing = div.style.display === 'block';
+}
+
 function parseQR(v) {
     if (v.length < 25) return null;
-    
-    let skuKey = v.substring(3, 15);      // 1160W0743GQQ
-    let batchNo = v.substring(15, 19);    // 0455
-    // skip index 19 & 20 (The "18" in 180226)
-    let monthYear = v.substring(21, 25);  // 0226
-    
-    return {
-        skuName: skuMapping[skuKey] || "UNK",
-        batch: `41-${batchNo}-${monthYear}` // Result: 41-0455-0226
-    };
+    let skuKey = v.substring(3, 15);
+    let batchNo = v.substring(15, 19);
+    let monthYear = v.substring(21, 25);
+    return { skuName: skuMapping[skuKey] || "UNK", batch: `41-${batchNo}-${monthYear}` };
 }
 
 function processScan(t) {
@@ -150,6 +173,18 @@ function submitFinal() {
     queueData(activeData.skuName, activeData.batch, q, activeWH, "Cases", activeData.raw);
     cancelInput();
     showStatus(`✅ SAVED ${q}`, "var(--success)");
+}
+
+function submitManual() {
+    let sku = document.getElementById('manSku').value;
+    let bat = document.getElementById('manBatch').value;
+    let q = parseFloat(document.getElementById('manQty').value);
+    if(!sku || !bat || !q) { alert("Fill all fields"); return; }
+    if(currentMode === 'Dispatch' || currentMode === 'Short_Excess') q = q * -1;
+    queueData(sku, bat, q, activeWH, "Cases", "MANUAL_ENTRY");
+    document.getElementById('manQty').value = "";
+    toggleManual();
+    showStatus(`✅ MANUAL SAVED`, "var(--success)");
 }
 
 function cancelInput() { 
