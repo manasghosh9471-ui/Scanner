@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v8.1</title>
+    <title>Warehouse Pro v8.2</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
@@ -20,7 +20,6 @@
         .sub-mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 15px; display: none; }
         .sub-btn { padding: 8px; font-size: 10px; border-radius: 5px; background: #333; color: #aaa; border: 1px solid #444; }
         .sub-btn.active { background: var(--success); color: white; border-color: var(--success); }
-        #reader { width: 100%; border-radius: 15px; overflow: hidden; margin-bottom: 10px; display: none; }
     </style>
 </head>
 <body onclick="forceFocus()">
@@ -58,6 +57,7 @@
 
         <div id="inputArea" style="display:none;" class="card">
             <h2 id="inputTitle" style="color:var(--primary)">Qty</h2>
+            <div id="batchDisplay" style="font-size: 12px; color: #888; margin-bottom: 10px;">Batch: --</div>
             <input type="number" id="qtyInput" inputmode="numeric" style="font-size:40px; text-align:center;">
             <button class="btn" style="background:var(--success)" onclick="submitFinal()">✅ CONFIRM & SAVE</button>
             <button class="btn" onclick="cancelInput()" style="background:#333">CANCEL</button>
@@ -67,7 +67,6 @@
 <script>
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbyV6Ur4KXNp_CyUXYyHaS26uD5FJhrt7SRnhZ-Qb4v4voHvd7OhFL1DyCwnc9NcA1YDOg/exec";
 let currentMode = 'Normal', activeWH = 'Raw_Scans', activeData = null, isEditing = false, currentUser = "";
-let duplicates = new Set();
 
 const skuMapping = {"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH","1160W1799GNN":"EXN","1160W1799GPP":"EXP","1160W1799GQQ":"EXQ"};
 
@@ -92,17 +91,13 @@ function setMode(m, b) {
     currentMode = m;
     document.querySelectorAll('.mode-btn').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
-    
     const whDiv = document.getElementById('whSelector');
     if(m === 'Putaway' || m === 'Dispatch') {
         whDiv.style.display = 'grid';
         setWH('FG1_WH', document.getElementById('btnFG1'));
-    } else if(m === 'Breakage') {
-        whDiv.style.display = 'none'; activeWH = 'Breakage_WH';
-    } else if(m === 'Short_Excess') {
-        whDiv.style.display = 'none'; activeWH = 'Short_WH'; // Default to Short
     } else {
-        whDiv.style.display = 'none'; activeWH = 'Raw_Scans';
+        whDiv.style.display = 'none';
+        activeWH = (m === 'Breakage') ? 'Breakage_WH' : (m === 'Short_Excess') ? 'Short_WH' : 'Raw_Scans';
     }
     updateTargetLabel();
 }
@@ -118,6 +113,20 @@ function updateTargetLabel() {
     document.getElementById('activeTarget').innerText = `MODE: ${currentMode} | TARGET: ${activeWH.replace('_WH','')}`;
 }
 
+// FIXED PARSING LOGIC
+function parseQR(v) {
+    if (v.length < 25) return null;
+    // Extracting based on your QR Structure: 890 + SKU(12) + BatchNo(4) + MMYY(4)
+    let skuKey = v.substring(3, 15);
+    let batchNo = v.substring(15, 19); 
+    let monthYear = v.substring(19, 23); // Correctly capturing MMYY
+    
+    return {
+        skuName: skuMapping[skuKey] || "UNK",
+        batch: `41-${batchNo}-${monthYear}` // Result: 41-XXXX-MMYY
+    };
+}
+
 function processScan(t) {
     let p = parseQR(t);
     if (!p) return;
@@ -128,6 +137,7 @@ function processScan(t) {
     } else {
         isEditing = true;
         document.getElementById('inputArea').style.display = 'block';
+        document.getElementById('batchDisplay').innerText = `Batch: ${p.batch}`;
         document.getElementById('qtyInput').focus();
         document.getElementById('inputTitle').innerText = p.skuName;
     }
@@ -136,18 +146,8 @@ function processScan(t) {
 function submitFinal() {
     let q = parseFloat(document.getElementById('qtyInput').value);
     if(!q) return;
-    
-    let finalWH = activeWH;
-    let unit = "Cases";
-    
-    // Auto-Logic for Negatives
-    if(currentMode === 'Dispatch') q = q * -1;
-    if(currentMode === 'Short_Excess') {
-        // In Short_Excess, if user enters positive it goes to Short_WH as negative
-        q = q * -1;
-    }
-
-    queueData(activeData.skuName, activeData.batch, q, finalWH, unit, activeData.raw);
+    if(currentMode === 'Dispatch' || currentMode === 'Short_Excess') q = q * -1;
+    queueData(activeData.skuName, activeData.batch, q, activeWH, "Cases", activeData.raw);
     cancelInput();
     showStatus(`✅ SAVED ${q}`, "var(--success)");
 }
@@ -157,12 +157,6 @@ function cancelInput() {
     document.getElementById('inputArea').style.display = "none"; 
     document.getElementById('qtyInput').value = "";
     forceFocus(); 
-}
-
-function parseQR(v) {
-    if (v.length < 25) return null;
-    let s = v.substring(3, 15), b = v.substring(15, 19), d = v.substring(19, 23);
-    return {skuName: skuMapping[s] || "UNK", batch: `41-${b}-${d.startsWith('0')?d.substring(1):d}`};
 }
 
 function queueData(sku, bat, qty, dst, unt, raw) {
