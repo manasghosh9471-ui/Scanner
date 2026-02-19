@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v8.2</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <title>Warehouse Pro v8.5</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: sans-serif; }
@@ -57,7 +56,7 @@
 
         <div id="inputArea" style="display:none;" class="card">
             <h2 id="inputTitle" style="color:var(--primary)">Qty</h2>
-            <div id="batchDisplay" style="font-size: 12px; color: #888; margin-bottom: 10px;">Batch: --</div>
+            <div id="batchDisplay" style="font-size: 16px; color: #34C759; font-weight: bold; margin-bottom: 10px; background: #222; padding: 5px; border-radius: 5px;">Batch: --</div>
             <input type="number" id="qtyInput" inputmode="numeric" style="font-size:40px; text-align:center;">
             <button class="btn" style="background:var(--success)" onclick="submitFinal()">✅ CONFIRM & SAVE</button>
             <button class="btn" onclick="cancelInput()" style="background:#333">CANCEL</button>
@@ -113,17 +112,18 @@ function updateTargetLabel() {
     document.getElementById('activeTarget').innerText = `MODE: ${currentMode} | TARGET: ${activeWH.replace('_WH','')}`;
 }
 
-// FIXED PARSING LOGIC
+// UPDATED PARSING TO SKIP DAY (DD)
 function parseQR(v) {
     if (v.length < 25) return null;
-    // Extracting based on your QR Structure: 890 + SKU(12) + BatchNo(4) + MMYY(4)
-    let skuKey = v.substring(3, 15);
-    let batchNo = v.substring(15, 19); 
-    let monthYear = v.substring(19, 23); // Correctly capturing MMYY
+    
+    let skuKey = v.substring(3, 15);      // 1160W0743GQQ
+    let batchNo = v.substring(15, 19);    // 0455
+    // skip index 19 & 20 (The "18" in 180226)
+    let monthYear = v.substring(21, 25);  // 0226
     
     return {
         skuName: skuMapping[skuKey] || "UNK",
-        batch: `41-${batchNo}-${monthYear}` // Result: 41-XXXX-MMYY
+        batch: `41-${batchNo}-${monthYear}` // Result: 41-0455-0226
     };
 }
 
