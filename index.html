@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v8.8</title>
+    <title>Warehouse Pro v8.9</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: sans-serif; }
@@ -80,8 +80,8 @@
                     <input type="number" id="bat4" placeholder="0455" inputmode="numeric">
                 </div>
                 <div>
-                    <label>MMYY</label>
-                    <input type="number" id="batDate" placeholder="0226" inputmode="numeric">
+                    <label>M-YY</label>
+                    <input type="number" id="batDate" placeholder="226" inputmode="numeric">
                 </div>
                 <div>
                     <label>Unique (5)</label>
@@ -121,7 +121,7 @@ function forceFocus() {
 setInterval(forceFocus, 500);
 
 document.getElementById('hhtCatch').addEventListener('input', (e) => {
-    if (e.target.value.length >= 25) { processScan(e.target.value); e.target.value = ""; }
+    if (e.target.value.length >= 24) { processScan(e.target.value); e.target.value = ""; }
 });
 
 function setMode(m, b) {
@@ -150,14 +150,19 @@ function updateTargetLabel() {
     document.getElementById('activeTarget').innerText = `MODE: ${currentMode} | TARGET: ${activeWH.replace('_WH','')}`;
 }
 
+// SMART PARSING FOR VARIABLE DATE LENGTH (3 vs 4 digits)
 function parseQR(v) {
-    if (v.length < 25) return null;
-    return {
-        skuName: skuMapping[v.substring(3, 15)] || "UNK",
-        b4: v.substring(15, 19),
-        mmyy: v.substring(21, 25),
-        uni: v.substring(v.length - 5)
-    };
+    if (v.length < 24) return null;
+    let sku = skuMapping[v.substring(3, 15)] || "UNK";
+    let b4 = v.substring(15, 19);
+    
+    // Find where the date ends by looking for "L2"
+    let lineIdx = v.indexOf("L2");
+    // Date starts at index 21 (skipping index 19 & 20 for Day)
+    let my = v.substring(21, lineIdx); 
+    let uni = v.substring(v.length - 5);
+
+    return { skuName: sku, b4: b4, mmyy: my, uni: uni };
 }
 
 function processScan(t) {
@@ -186,7 +191,7 @@ function submitFinal(autoQty = null) {
     
     if(!sku || !b4 || !my || isNaN(q)) { showStatus("❌ MISSING DATA", "var(--danger)"); return; }
     
-    // Combine into the batch format you need
+    // The sheet will now get 41-0455-226 or 41-0455-1026
     let fullBatch = `41-${b4}-${my}`;
     
     if(currentMode === 'Dispatch' || currentMode === 'Short_Excess') q = Math.abs(q) * -1;
