@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v10.1 - QUEUE ENABLED</title>
+    <title>Warehouse Pro v10.2</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --warning: #FF9500; --bg: #0a0a0a; --card: #1c1c1e; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, system-ui, sans-serif; }
@@ -11,21 +11,27 @@
         .card { background: var(--card); padding: 18px; border-radius: 20px; margin-bottom: 12px; border: 1px solid #333; }
         input, select { width: 100%; padding: 14px; border-radius: 12px; background: #2c2c2e; color: white; border: 1px solid #444; margin: 8px 0; outline: none; font-size: 15px; }
         .btn { border: none; border-radius: 12px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 15px; font-size: 16px; text-transform: uppercase; }
-        .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-        .mode-btn { padding: 15px; border-radius: 12px; border: 1px solid #333; background: #1c1c1e; color: #8e8e93; font-weight: bold; font-size: 11px; }
-        .mode-btn.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 0 15px rgba(0,122,255,0.3); }
+        
+        /* MODE & WH GRID */
+        .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+        .mode-btn { padding: 12px; border-radius: 10px; border: 1px solid #444; background: #222; color: #888; font-weight: bold; font-size: 10px; }
+        .mode-btn.active { background: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 0 10px rgba(0,122,255,0.3); }
+        
+        .wh-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; display: none; }
+        .wh-btn { padding: 10px; font-size: 10px; border-radius: 8px; background: #333; color: #aaa; border: 1px solid #444; }
+        .wh-btn.active { background: var(--success); color: white; border-color: var(--success); }
+
         .batch-row { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 5px; }
         label { display: block; text-align: left; font-size: 10px; color: #8e8e93; margin-top: 10px; margin-left: 5px; font-weight: bold; }
-        .history-item { display: flex; justify-content: space-between; background: #1c1c1e; padding: 12px; border-radius: 10px; margin-bottom: 5px; font-size: 12px; border-left: 4px solid var(--success); }
         #hhtCatch { position: absolute; left: -9999px; opacity: 0; }
-        .queue-badge { background: var(--warning); color: black; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: bold; }
+        .queue-badge { background: var(--warning); color: black; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: bold; }
     </style>
 </head>
 <body onclick="forceFocus()">
 
     <div id="loginOverlay">
-        <div style="background: rgba(255,255,255,0.05); padding: 30px; border-radius: 25px; border: 1px solid #444;">
-            <h2 style="margin-bottom: 25px;">TERMINAL v10.1</h2>
+        <div style="background: rgba(255,255,255,0.05); padding: 40px 20px; border-radius: 25px; border: 1px solid #444; width: 90%; max-width: 350px;">
+            <h2 style="margin-bottom: 25px;">TERMINAL v10.2</h2>
             <input type="text" id="userNameInput" placeholder="User Name">
             <input type="password" id="userPassInput" placeholder="PIN (123)" inputmode="numeric">
             <button class="btn" style="background: var(--primary);" onclick="attemptLogin()">INIT SYSTEM</button>
@@ -35,7 +41,7 @@
     <div id="mainApp" style="display: none;">
         <div style="display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 10px; color: #666;">
             <span><span id="connDot" style="height:8px; width:8px; border-radius:50%; display:inline-block; background:var(--success);"></span> <span id="connText">ONLINE</span></span>
-            <span id="queueStatus" class="queue-badge" style="display:none;">0 PENDING SYNC</span>
+            <span id="queueStatus" class="queue-badge" style="display:none;">0 SYNCING</span>
             <span id="displayUser">USER</span>
         </div>
         
@@ -49,8 +55,14 @@
             <button class="mode-btn" style="grid-column: span 2" onclick="setMode('Adjust', this)">⚖️ ADJUST STOCK</button>
         </div>
 
+        <div id="whSelector" class="wh-grid">
+            <button id="btnFG1" class="wh-btn active" onclick="setWH('FG1_WH', this)">FG1 WAREHOUSE</button>
+            <button id="btnFG2" class="wh-btn" onclick="setWH('FG2_WH', this)">FG2 WAREHOUSE</button>
+        </div>
+
         <div id="resultCard" class="card">
-            <div id="statusText" style="font-size: 18px; font-weight: bold; color: #555;">READY TO SCAN</div>
+            <div id="targetLabel" style="font-size: 10px; color: var(--primary); margin-bottom: 4px; font-weight: bold;">TARGET: RAW_SCANS</div>
+            <div id="statusText" style="font-size: 18px; font-weight: bold; color: #555;">READY</div>
         </div>
 
         <div id="manualSection" class="card">
@@ -76,11 +88,9 @@
                 <div><label>UNIQUE</label><input type="number" id="batUnique" placeholder="00000"></div>
             </div>
             <label id="qtyLabel">QUANTITY</label>
-            <input type="number" id="manQty" placeholder="Value">
+            <input type="number" id="manQty" placeholder="Enter Value">
             <button class="btn" style="background:var(--success)" onclick="submitFinal()">SAVE DATA</button>
         </div>
-
-        <div id="historyLog"></div>
     </div>
 
 <script>
@@ -88,59 +98,70 @@ const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbyV6Ur4KXNp_CyUXYyHa
 let currentMode = 'Normal', activeWH = 'Raw_Scans', currentUser = "", lastScan = "";
 let offlineQueue = JSON.parse(localStorage.getItem('wh_queue') || "[]");
 
-// 1. AUTO-SYNC LOGIC
+// SYNC & QUEUE LOGIC
 setInterval(() => {
     const isOnline = navigator.onLine;
     document.getElementById('connDot').style.background = isOnline ? 'var(--success)' : 'var(--danger)';
     document.getElementById('connText').innerText = isOnline ? 'ONLINE' : 'OFFLINE';
-    
-    if(isOnline && offlineQueue.length > 0) {
-        processQueue();
-    }
+    if(isOnline && offlineQueue.length > 0) processQueue();
     updateQueueBadge();
 }, 3000);
 
 function updateQueueBadge() {
     const b = document.getElementById('queueStatus');
-    if(offlineQueue.length > 0) { b.style.display = 'inline'; b.innerText = `${offlineQueue.length} PENDING SYNC`; }
+    if(offlineQueue.length > 0) { b.style.display = 'inline'; b.innerText = `${offlineQueue.length} QUEUED`; }
     else { b.style.display = 'none'; }
 }
 
 async function processQueue() {
-    if(offlineQueue.length === 0) return;
     const item = offlineQueue[0];
     try {
         await fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(item) });
         offlineQueue.shift();
         localStorage.setItem('wh_queue', JSON.stringify(offlineQueue));
-        updateQueueBadge();
-    } catch(e) { console.log("Sync failed, retrying..."); }
+    } catch(e) { console.log("Retrying sync..."); }
 }
 
-// 2. RESTORE ADJUST LOGIC & UI
+// MODE & WH HANDLING
 function setMode(m, b) {
-    currentMode = m; document.querySelectorAll('.mode-btn').forEach(x => x.classList.remove('active'));
+    currentMode = m;
+    document.querySelectorAll('.mode-btn').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
-    activeWH = (m === 'Breakage') ? 'Breakage_WH' : (m === 'Adjust') ? 'Short_WH' : 'Raw_Scans';
+    
+    const whDiv = document.getElementById('whSelector');
+    if(m === 'Putaway' || m === 'Dispatch') {
+        whDiv.style.display = 'grid';
+        setWH('FG1_WH', document.getElementById('btnFG1'));
+    } else {
+        whDiv.style.display = 'none';
+        activeWH = (m === 'Breakage') ? 'Breakage_WH' : (m === 'Adjust') ? 'Short_WH' : 'Raw_Scans';
+    }
+    updateUI();
+}
+
+function setWH(wh, b) {
+    activeWH = wh;
+    document.querySelectorAll('.wh-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
     updateUI();
 }
 
 function updateUI() {
-    // Show manual card for T&T, Breakage, AND Adjust
+    document.getElementById('targetLabel').innerText = `TARGET: ${activeWH.replace('_WH','')}`;
     const showManual = ['Normal', 'Breakage', 'Adjust'].includes(currentMode);
     document.getElementById('manualSection').style.display = showManual ? 'block' : 'none';
     document.getElementById('qtyLabel').innerText = (currentMode === 'Breakage') ? "QUANTITY (BOTTLES)" : "QUANTITY (CASES)";
 }
 
-// 3. CORE FUNCTIONS (LOCKED)
+// CORE SYSTEM
 function attemptLogin() {
-    const n = document.getElementById('userNameInput').value.trim();
-    if(n && document.getElementById('userPassInput').value === "123") {
-        currentUser = n; document.getElementById('loginOverlay').style.display = 'none';
+    if(document.getElementById('userNameInput').value && document.getElementById('userPassInput').value === "123") {
+        currentUser = document.getElementById('userNameInput').value;
+        document.getElementById('loginOverlay').style.display = 'none';
         document.getElementById('mainApp').style.display = 'block';
-        document.getElementById('displayUser').innerText = n.toUpperCase();
+        document.getElementById('displayUser').innerText = currentUser.toUpperCase();
         updateUI();
-    } else { alert("INVALID PIN"); }
+    } else { alert("ACCESS DENIED"); }
 }
 
 function forceFocus() { if(currentUser && !['INPUT', 'SELECT'].includes(document.activeElement.tagName)) document.getElementById('hhtCatch').focus(); }
@@ -148,9 +169,8 @@ setInterval(forceFocus, 500);
 
 document.getElementById('hhtCatch').addEventListener('input', (e) => {
     if (e.target.value.length >= 24) { 
-        if(e.target.value === lastScan) { alert("DUPLICATE!"); e.target.value = ""; return; }
-        processScan(e.target.value); 
-        lastScan = e.target.value; e.target.value = ""; 
+        if(e.target.value === lastScan) { e.target.value = ""; return; }
+        processScan(e.target.value); lastScan = e.target.value; e.target.value = ""; 
     }
 });
 
@@ -162,7 +182,13 @@ function processScan(t) {
     document.getElementById('batDate').value = my;
     document.getElementById('batUnique').value = uni;
     if (currentMode === 'Normal') submitFinal(1);
-    else document.getElementById('manQty').focus();
+    else {
+        document.getElementById('statusText').innerText = `SCANNED: ${sku}`;
+        if(['Putaway','Dispatch','Breakage','Adjust'].includes(currentMode)) {
+            let q = prompt(`Enter Quantity for ${sku}:`, "1");
+            if(q) { document.getElementById('manQty').value = q; submitFinal(); }
+        }
+    }
 }
 
 function submitFinal(autoQty = null) {
@@ -170,16 +196,15 @@ function submitFinal(autoQty = null) {
     if(!sku || !b4 || isNaN(q)) return;
     
     let unit = (currentMode === 'Breakage') ? "Bottles" : "Cases";
-    if(currentMode === 'Dispatch') q = q * -1;
+    if(currentMode === 'Dispatch') q = Math.abs(q) * -1; else q = Math.abs(q);
 
-    const data = { skuName: sku, batch: `41-${b4}-${my}`, cases: q, destination: activeWH, unit: unit, userName: currentUser, time: new Date().toLocaleTimeString() };
+    const data = { skuName: sku, batch: `41-${b4}-${my}`, cases: q, destination: activeWH, unit: unit, userName: currentUser, timestamp: new Date().toISOString() };
     
-    // OFFLINE QUEUE LOGIC
     offlineQueue.push(data);
     localStorage.setItem('wh_queue', JSON.stringify(offlineQueue));
     updateQueueBadge();
     
-    // Reset Fields
+    // FULL AUTO-RESET TO BLANK
     document.getElementById('manSku').value = ""; document.getElementById('bat4').value = ""; document.getElementById('batDate').value = ""; document.getElementById('batUnique').value = ""; document.getElementById('manQty').value = "";
     document.getElementById('statusText').innerText = `SAVED: ${sku} (${q})`;
     document.getElementById('statusText').style.color = 'var(--success)';
