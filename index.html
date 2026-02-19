@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v8.6</title>
+    <title>Warehouse Pro v8.7</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: sans-serif; }
         body { background: var(--bg); color: var(--text); padding: 10px; text-align: center; }
-        .card { background: var(--card); padding: 20px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #333; }
-        input, select { width: 100%; padding: 12px; border-radius: 8px; background: #222; color: white; border: 1px solid #444; margin: 5px 0; outline: none; }
+        .card { background: var(--card); padding: 15px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #333; }
+        input, select { width: 100%; padding: 12px; border-radius: 8px; background: #222; color: white; border: 1px solid #444; margin: 5px 0; outline: none; font-size: 14px; }
         .btn { border: none; border-radius: 10px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 10px; }
         #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 999; display: flex; align-items: center; justify-content: center; padding: 20px; }
         #hhtCatch { position: absolute; left: -9999px; top: 0; opacity: 0; }
@@ -19,7 +19,7 @@
         .sub-mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 15px; display: none; }
         .sub-btn { padding: 8px; font-size: 10px; border-radius: 5px; background: #333; color: #aaa; border: 1px solid #444; }
         .sub-btn.active { background: var(--success); color: white; border-color: var(--success); }
-        #manualEntryArea { display: none; margin-top: 10px; border-top: 1px dashed #444; padding-top: 10px; }
+        label { display: block; text-align: left; font-size: 11px; color: #888; margin-top: 5px; margin-left: 5px; }
     </style>
 </head>
 <body onclick="forceFocus()">
@@ -55,19 +55,10 @@
             <div id="statusText" style="font-size: 18px; color: #888;">READY TO SCAN</div>
         </div>
 
-        <div id="inputArea" style="display:none;" class="card">
-            <h2 id="inputTitle" style="color:var(--primary)">Qty</h2>
-            <div id="batchDisplay" style="font-size: 16px; color: #34C759; font-weight: bold; margin-bottom: 10px; background: #222; padding: 5px; border-radius: 5px;">Batch: --</div>
-            <input type="number" id="qtyInput" inputmode="numeric" style="font-size:40px; text-align:center;">
-            <button class="btn" style="background:var(--success)" onclick="submitFinal()">✅ CONFIRM & SAVE</button>
-            <button class="btn" onclick="cancelInput()" style="background:#333">CANCEL</button>
-        </div>
-
-        <button onclick="toggleManual()" style="background:none; border:none; color:var(--primary); font-size:12px; text-decoration:underline; margin-top:10px;">⌨️ Damage Barcode? Use Manual Entry</button>
-        
-        <div id="manualEntryArea" class="card">
+        <div class="card">
+            <label>SKU NAME</label>
             <select id="manSku">
-                <option value="">Select SKU Manually</option>
+                <option value="">-- Select SKU --</option>
                 <option value="RSP">RSP</option><option value="BPFN">BPFN</option><option value="IBKP">IBKP</option>
                 <option value="IBKN">IBKN</option><option value="IBKQ">IBKQ</option><option value="OGQ">OGQ</option>
                 <option value="OGN">OGN</option><option value="OGP">OGP</option><option value="HPTN">HPTN</option>
@@ -81,15 +72,20 @@
                 <option value="IBN">IBN</option><option value="IBQ">IBQ</option><option value="RSH">RSH</option>
                 <option value="EXN">EXN</option><option value="EXP">EXP</option><option value="EXQ">EXQ</option>
             </select>
-            <input type="text" id="manBatch" placeholder="Format: 41-XXXX-MMYY">
-            <input type="number" id="manQty" placeholder="Quantity">
-            <button class="btn" style="background:var(--primary)" onclick="submitManual()">SAVE MANUAL ENTRY</button>
+            
+            <label>BATCH NO</label>
+            <input type="text" id="manBatch" placeholder="41-XXXX-MMYY">
+            
+            <label>QUANTITY (CASES)</label>
+            <input type="number" id="manQty" placeholder="Enter Qty" inputmode="numeric">
+            
+            <button class="btn" style="background:var(--success)" onclick="submitFinal()">✅ CONFIRM & SAVE</button>
         </div>
     </div>
 
 <script>
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbyV6Ur4KXNp_CyUXYyHaS26uD5FJhrt7SRnhZ-Qb4v4voHvd7OhFL1DyCwnc9NcA1YDOg/exec";
-let currentMode = 'Normal', activeWH = 'Raw_Scans', activeData = null, isEditing = false, currentUser = "";
+let currentMode = 'Normal', activeWH = 'Raw_Scans', currentUser = "", currentRawQR = "MANUAL_ENTRY";
 
 const skuMapping = {"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH","1160W1799GNN":"EXN","1160W1799GPP":"EXP","1160W1799GQQ":"EXQ"};
 
@@ -103,8 +99,13 @@ function attemptLogin() {
     } else { alert("Error"); }
 }
 
-function forceFocus() { if(!isEditing && currentUser) document.getElementById('hhtCatch').focus(); }
-setInterval(forceFocus, 400);
+function forceFocus() { 
+    const activeEl = document.activeElement.tagName;
+    if(currentUser && activeEl !== 'INPUT' && activeEl !== 'SELECT') {
+        document.getElementById('hhtCatch').focus();
+    }
+}
+setInterval(forceFocus, 500);
 
 document.getElementById('hhtCatch').addEventListener('input', (e) => {
     if (e.target.value.length >= 25) { processScan(e.target.value); e.target.value = ""; }
@@ -136,12 +137,6 @@ function updateTargetLabel() {
     document.getElementById('activeTarget').innerText = `MODE: ${currentMode} | TARGET: ${activeWH.replace('_WH','')}`;
 }
 
-function toggleManual() {
-    let div = document.getElementById('manualEntryArea');
-    div.style.display = div.style.display === 'block' ? 'none' : 'block';
-    isEditing = div.style.display === 'block';
-}
-
 function parseQR(v) {
     if (v.length < 25) return null;
     let skuKey = v.substring(3, 15);
@@ -153,50 +148,41 @@ function parseQR(v) {
 function processScan(t) {
     let p = parseQR(t);
     if (!p) return;
-    p.raw = t; activeData = p;
+    currentRawQR = t;
+    document.getElementById('manSku').value = p.skuName;
+    document.getElementById('manBatch').value = p.batch;
+    
     if (currentMode === 'Normal') {
-        queueData(p.skuName, p.batch, 1, activeWH, "Cases", p.raw);
-        showStatus(`✅ LOGGED: ${p.skuName}`, "var(--success)");
+        submitFinal(1); // Auto save for Normal mode
     } else {
-        isEditing = true;
-        document.getElementById('inputArea').style.display = 'block';
-        document.getElementById('batchDisplay').innerText = `Batch: ${p.batch}`;
-        document.getElementById('qtyInput').focus();
-        document.getElementById('inputTitle').innerText = p.skuName;
+        showStatus(`SCAN OK: ${p.skuName}`, "var(--primary)");
+        document.getElementById('manQty').focus();
     }
 }
 
-function submitFinal() {
-    let q = parseFloat(document.getElementById('qtyInput').value);
-    if(!q) return;
-    if(currentMode === 'Dispatch' || currentMode === 'Short_Excess') q = q * -1;
-    queueData(activeData.skuName, activeData.batch, q, activeWH, "Cases", activeData.raw);
-    cancelInput();
-    showStatus(`✅ SAVED ${q}`, "var(--success)");
-}
-
-function submitManual() {
+function submitFinal(autoQty = null) {
     let sku = document.getElementById('manSku').value;
     let bat = document.getElementById('manBatch').value;
-    let q = parseFloat(document.getElementById('manQty').value);
-    if(!sku || !bat || !q) { alert("Fill all fields"); return; }
-    if(currentMode === 'Dispatch' || currentMode === 'Short_Excess') q = q * -1;
-    queueData(sku, bat, q, activeWH, "Cases", "MANUAL_ENTRY");
-    document.getElementById('manQty').value = "";
-    toggleManual();
-    showStatus(`✅ MANUAL SAVED`, "var(--success)");
-}
+    let q = autoQty || parseFloat(document.getElementById('manQty').value);
+    
+    if(!sku || !bat || isNaN(q)) { showStatus("❌ MISSING DATA", "var(--danger)"); return; }
+    
+    // Auto-Polarity
+    if(currentMode === 'Dispatch' || currentMode === 'Short_Excess') q = Math.abs(q) * -1;
+    else q = Math.abs(q);
 
-function cancelInput() { 
-    isEditing = false; 
-    document.getElementById('inputArea').style.display = "none"; 
-    document.getElementById('qtyInput').value = "";
-    forceFocus(); 
-}
-
-function queueData(sku, bat, qty, dst, unt, raw) {
-    const d = { skuName: sku, batch: bat, cases: qty, destination: dst, unit: unt, fullQR: raw, userName: currentUser };
+    const d = { skuName: sku, batch: bat, cases: q, destination: activeWH, unit: "Cases", fullQR: currentRawQR, userName: currentUser };
     fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(d) });
+    
+    // Reset fields
+    document.getElementById('manQty').value = "";
+    if (currentMode !== 'Normal') {
+        document.getElementById('manSku').value = "";
+        document.getElementById('manBatch').value = "";
+    }
+    currentRawQR = "MANUAL_ENTRY";
+    showStatus(`✅ SAVED: ${sku} (${q})`, "var(--success)");
+    document.getElementById('hhtCatch').focus();
 }
 
 function showStatus(m, c) { document.getElementById('statusText').innerText = m; document.getElementById('statusText').style.color = c; }
