@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v9.0</title>
+    <title>Warehouse Pro v9.1</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: sans-serif; }
         body { background: var(--bg); color: var(--text); padding: 10px; text-align: center; }
         .card { background: var(--card); padding: 15px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #333; }
         input, select { width: 100%; padding: 12px; border-radius: 8px; background: #222; color: white; border: 1px solid #444; margin: 5px 0; outline: none; font-size: 14px; }
-        input:disabled, select:disabled { opacity: 0.3; background: #111; border-color: #222; }
         .btn { border: none; border-radius: 10px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 10px; }
         #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 999; display: flex; align-items: center; justify-content: center; padding: 20px; }
         #hhtCatch { position: absolute; left: -9999px; top: 0; opacity: 0; }
@@ -22,7 +21,8 @@
         .sub-btn.active { background: var(--success); color: white; border-color: var(--success); }
         .batch-row { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 5px; }
         label { display: block; text-align: left; font-size: 10px; color: #888; margin-top: 8px; margin-left: 5px; text-transform: uppercase; }
-        #manualWarning { color: var(--danger); font-size: 10px; margin-top: 5px; display: none; }
+        /* MANUAL SECTION HIDDEN BY DEFAULT */
+        #manualSection { display: block; } 
     </style>
 </head>
 <body onclick="forceFocus()">
@@ -41,7 +41,7 @@
         <input type="text" id="hhtCatch" autocomplete="off">
 
         <div class="mode-grid">
-            <button id="btnNormal" class="mode-btn active" onclick="setMode('Normal', this)">📦 T&T STOCKS</button>
+            <button class="mode-btn active" onclick="setMode('Normal', this)">📦 T&T STOCKS</button>
             <button class="mode-btn" onclick="setMode('Putaway', this)">📥 PUTAWAY</button>
             <button class="mode-btn" onclick="setMode('Dispatch', this)">🚚 DISPATCH</button>
             <button class="mode-btn" onclick="setMode('Breakage', this)">🍾 BREAKAGE</button>
@@ -58,8 +58,7 @@
             <div id="statusText" style="font-size: 18px; color: #888;">READY TO SCAN</div>
         </div>
 
-        <div class="card">
-            <div id="manualWarning">⚠️ Manual disabled for this mode</div>
+        <div id="manualSection" class="card">
             <label>SKU Name</label>
             <select id="manSku">
                 <option value="">-- Select SKU --</option>
@@ -95,7 +94,7 @@
             <label>Quantity</label>
             <input type="number" id="manQty" placeholder="Enter Cases" inputmode="numeric">
             
-            <button id="saveBtn" class="btn" style="background:var(--success)" onclick="submitFinal()">✅ CONFIRM & SAVE</button>
+            <button class="btn" style="background:var(--success)" onclick="submitFinal()">✅ CONFIRM & SAVE</button>
         </div>
     </div>
 
@@ -112,7 +111,7 @@ function attemptLogin() {
         document.getElementById('loginOverlay').style.display = 'none';
         document.getElementById('mainApp').style.display = 'block';
         document.getElementById('displayUser').innerText = n.toUpperCase();
-        updateManualAbility();
+        updateManualVisibility();
     } else { alert("Error"); }
 }
 
@@ -141,18 +140,18 @@ function setMode(m, b) {
         activeWH = (m === 'Breakage') ? 'Breakage_WH' : (m === 'Short_Excess') ? 'Short_WH' : 'Raw_Scans';
     }
     updateTargetLabel();
-    updateManualAbility();
+    updateManualVisibility();
 }
 
-// LOCKING LOGIC FOR NON-T&T MODES
-function updateManualAbility() {
-    const isNormal = (currentMode === 'Normal');
-    const inputs = ['manSku', 'bat4', 'batDate', 'batUnique', 'manQty'];
-    inputs.forEach(id => {
-        document.getElementById(id).disabled = !isNormal;
-        if(!isNormal) document.getElementById(id).value = ""; // Clear if switched
-    });
-    document.getElementById('manualWarning').style.display = isNormal ? 'none' : 'block';
+// SMART VISIBILITY LOGIC
+function updateManualVisibility() {
+    const section = document.getElementById('manualSection');
+    // Show only for T&T (Normal) and Breakage
+    if(currentMode === 'Normal' || currentMode === 'Breakage') {
+        section.style.display = 'block';
+    } else {
+        section.style.display = 'none';
+    }
 }
 
 function setWH(wh, b) {
@@ -181,7 +180,7 @@ function processScan(t) {
     if (!p) return;
     currentRawQR = t;
     
-    // In any mode, scanner fills the fields even if they are disabled for typing
+    // Fill the fields regardless of visibility for logic consistency
     document.getElementById('manSku').value = p.skuName;
     document.getElementById('bat4').value = p.b4;
     document.getElementById('batDate').value = p.mmyy;
@@ -191,8 +190,19 @@ function processScan(t) {
         submitFinal(1);
     } else {
         showStatus(`SCAN OK: ${p.skuName}`, "var(--primary)");
-        document.getElementById('manQty').disabled = false; // Temporarily unlock for qty
-        document.getElementById('manQty').focus();
+        // If mode hides the card, the user just sees the status. 
+        // If it's Breakage, they can see/edit the Qty.
+        if(currentMode === 'Breakage') {
+             document.getElementById('manQty').focus();
+        } else {
+             // For Putaway/Dispatch/Shortage, we need a Qty. 
+             // Since the card is hidden, we use a prompt to keep UI clean.
+             let q = prompt(`Enter Quantity for ${p.skuName}:`, "1");
+             if(q) {
+                 document.getElementById('manQty').value = q;
+                 submitFinal();
+             }
+        }
     }
 }
 
@@ -221,7 +231,7 @@ function submitFinal(autoQty = null) {
     
     fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(d) });
     
-    // AUTO-RESET EVERYTHING TO BLANK
+    // --- STRICT AUTO-RESET ---
     document.getElementById('manSku').value = "";
     document.getElementById('bat4').value = "";
     document.getElementById('batDate').value = "";
@@ -230,9 +240,6 @@ function submitFinal(autoQty = null) {
     
     currentRawQR = "MANUAL_ENTRY";
     showStatus(`✅ SAVED: ${sku} (${q})`, "var(--success)");
-    
-    // Re-lock fields if not in T&T mode
-    updateManualAbility();
     document.getElementById('hhtCatch').focus();
 }
 
