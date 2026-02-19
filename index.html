@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v8.9</title>
+    <title>Warehouse Pro v9.0</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #121212; --card: #1E1E1E; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: sans-serif; }
         body { background: var(--bg); color: var(--text); padding: 10px; text-align: center; }
         .card { background: var(--card); padding: 15px; border-radius: 15px; margin-bottom: 10px; border: 1px solid #333; }
         input, select { width: 100%; padding: 12px; border-radius: 8px; background: #222; color: white; border: 1px solid #444; margin: 5px 0; outline: none; font-size: 14px; }
+        input:disabled, select:disabled { opacity: 0.3; background: #111; border-color: #222; }
         .btn { border: none; border-radius: 10px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 10px; }
         #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 999; display: flex; align-items: center; justify-content: center; padding: 20px; }
         #hhtCatch { position: absolute; left: -9999px; top: 0; opacity: 0; }
@@ -21,6 +22,7 @@
         .sub-btn.active { background: var(--success); color: white; border-color: var(--success); }
         .batch-row { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 5px; }
         label { display: block; text-align: left; font-size: 10px; color: #888; margin-top: 8px; margin-left: 5px; text-transform: uppercase; }
+        #manualWarning { color: var(--danger); font-size: 10px; margin-top: 5px; display: none; }
     </style>
 </head>
 <body onclick="forceFocus()">
@@ -39,7 +41,7 @@
         <input type="text" id="hhtCatch" autocomplete="off">
 
         <div class="mode-grid">
-            <button class="mode-btn active" onclick="setMode('Normal', this)">📦 T&T STOCKS</button>
+            <button id="btnNormal" class="mode-btn active" onclick="setMode('Normal', this)">📦 T&T STOCKS</button>
             <button class="mode-btn" onclick="setMode('Putaway', this)">📥 PUTAWAY</button>
             <button class="mode-btn" onclick="setMode('Dispatch', this)">🚚 DISPATCH</button>
             <button class="mode-btn" onclick="setMode('Breakage', this)">🍾 BREAKAGE</button>
@@ -57,6 +59,7 @@
         </div>
 
         <div class="card">
+            <div id="manualWarning">⚠️ Manual disabled for this mode</div>
             <label>SKU Name</label>
             <select id="manSku">
                 <option value="">-- Select SKU --</option>
@@ -92,7 +95,7 @@
             <label>Quantity</label>
             <input type="number" id="manQty" placeholder="Enter Cases" inputmode="numeric">
             
-            <button class="btn" style="background:var(--success)" onclick="submitFinal()">✅ CONFIRM & SAVE</button>
+            <button id="saveBtn" class="btn" style="background:var(--success)" onclick="submitFinal()">✅ CONFIRM & SAVE</button>
         </div>
     </div>
 
@@ -109,6 +112,7 @@ function attemptLogin() {
         document.getElementById('loginOverlay').style.display = 'none';
         document.getElementById('mainApp').style.display = 'block';
         document.getElementById('displayUser').innerText = n.toUpperCase();
+        updateManualAbility();
     } else { alert("Error"); }
 }
 
@@ -137,6 +141,18 @@ function setMode(m, b) {
         activeWH = (m === 'Breakage') ? 'Breakage_WH' : (m === 'Short_Excess') ? 'Short_WH' : 'Raw_Scans';
     }
     updateTargetLabel();
+    updateManualAbility();
+}
+
+// LOCKING LOGIC FOR NON-T&T MODES
+function updateManualAbility() {
+    const isNormal = (currentMode === 'Normal');
+    const inputs = ['manSku', 'bat4', 'batDate', 'batUnique', 'manQty'];
+    inputs.forEach(id => {
+        document.getElementById(id).disabled = !isNormal;
+        if(!isNormal) document.getElementById(id).value = ""; // Clear if switched
+    });
+    document.getElementById('manualWarning').style.display = isNormal ? 'none' : 'block';
 }
 
 function setWH(wh, b) {
@@ -150,18 +166,13 @@ function updateTargetLabel() {
     document.getElementById('activeTarget').innerText = `MODE: ${currentMode} | TARGET: ${activeWH.replace('_WH','')}`;
 }
 
-// SMART PARSING FOR VARIABLE DATE LENGTH (3 vs 4 digits)
 function parseQR(v) {
     if (v.length < 24) return null;
     let sku = skuMapping[v.substring(3, 15)] || "UNK";
     let b4 = v.substring(15, 19);
-    
-    // Find where the date ends by looking for "L2"
     let lineIdx = v.indexOf("L2");
-    // Date starts at index 21 (skipping index 19 & 20 for Day)
     let my = v.substring(21, lineIdx); 
     let uni = v.substring(v.length - 5);
-
     return { skuName: sku, b4: b4, mmyy: my, uni: uni };
 }
 
@@ -169,6 +180,8 @@ function processScan(t) {
     let p = parseQR(t);
     if (!p) return;
     currentRawQR = t;
+    
+    // In any mode, scanner fills the fields even if they are disabled for typing
     document.getElementById('manSku').value = p.skuName;
     document.getElementById('bat4').value = p.b4;
     document.getElementById('batDate').value = p.mmyy;
@@ -178,6 +191,7 @@ function processScan(t) {
         submitFinal(1);
     } else {
         showStatus(`SCAN OK: ${p.skuName}`, "var(--primary)");
+        document.getElementById('manQty').disabled = false; // Temporarily unlock for qty
         document.getElementById('manQty').focus();
     }
 }
@@ -191,9 +205,7 @@ function submitFinal(autoQty = null) {
     
     if(!sku || !b4 || !my || isNaN(q)) { showStatus("❌ MISSING DATA", "var(--danger)"); return; }
     
-    // The sheet will now get 41-0455-226 or 41-0455-1026
     let fullBatch = `41-${b4}-${my}`;
-    
     if(currentMode === 'Dispatch' || currentMode === 'Short_Excess') q = Math.abs(q) * -1;
     else q = Math.abs(q);
 
@@ -209,15 +221,18 @@ function submitFinal(autoQty = null) {
     
     fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(d) });
     
+    // AUTO-RESET EVERYTHING TO BLANK
+    document.getElementById('manSku').value = "";
+    document.getElementById('bat4').value = "";
+    document.getElementById('batDate').value = "";
+    document.getElementById('batUnique').value = "";
     document.getElementById('manQty').value = "";
-    if (currentMode !== 'Normal') {
-        document.getElementById('manSku').value = "";
-        document.getElementById('bat4').value = "";
-        document.getElementById('batDate').value = "";
-        document.getElementById('batUnique').value = "";
-    }
+    
     currentRawQR = "MANUAL_ENTRY";
     showStatus(`✅ SAVED: ${sku} (${q})`, "var(--success)");
+    
+    // Re-lock fields if not in T&T mode
+    updateManualAbility();
     document.getElementById('hhtCatch').focus();
 }
 
