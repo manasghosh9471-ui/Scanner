@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v10.7</title>
+    <title>Warehouse Pro v10.8</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #0a0a0a; --card: #1c1c1e; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, system-ui, sans-serif; }
@@ -93,7 +93,18 @@ const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbyV6Ur4KXNp_CyUXYyHa
 let currentMode = 'Normal', activeWH = 'Raw_Scans', currentUser = "", lastScanStr = "", lastScanTime = 0;
 let offlineQueue = JSON.parse(localStorage.getItem('wh_queue') || "[]");
 let recentLogs = JSON.parse(localStorage.getItem('wh_logs') || "[]");
-let isSyncing = false; // LOCK TO PREVENT DOUBLE SYNC
+let isSyncing = false;
+
+// SOUND ENGINE
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playTone(freq, type, duration) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + duration);
+}
 
 const bgImages = ["https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=1000", "https://images.unsplash.com/photo-1553413077-190dd305871c?q=80&w=1000"];
 let bgIdx = 0;
@@ -102,21 +113,24 @@ rotateBG(); setInterval(rotateBG, 5000);
 
 function processScan(t) {
     let now = Date.now();
-    // DOUBLE ENTRY PROTECTION: Ignore if same QR within 2 seconds
-    if (t === lastScanStr && (now - lastScanTime < 2000)) return;
+    if (t === lastScanStr && (now - lastScanTime < 2000)) {
+        playTone(150, 'sawtooth', 0.2); // DUPLICATE ALERT
+        return;
+    }
     lastScanStr = t;
     lastScanTime = now;
 
     let skuM = {"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH","1160W1799GNN":"EXN","1160W1799GPP":"EXP","1160W1799GQQ":"EXQ"};
     
     let sku = skuM[t.substring(3, 15)] || "UNK";
+    if(sku === "UNK") playTone(200, 'square', 0.5); // ERROR TONE
+
     let b4 = t.substring(15, 19);
     let lineIdx = t.indexOf("L2") !== -1 ? t.indexOf("L2") : t.indexOf("L1");
     let my = t.substring(21, lineIdx);
-
     if(my.startsWith("0")) my = my.substring(1);
-
     let uni = t.substring(t.length - 5);
+
     document.getElementById('manSku').value = sku;
     document.getElementById('bat4').value = b4;
     document.getElementById('batDate').value = my;
@@ -124,6 +138,7 @@ function processScan(t) {
 
     if (currentMode === 'Normal') submitFinal(1, t);
     else {
+        playTone(600, 'sine', 0.1); // SOFT SCAN CONFIRM
         document.getElementById('statusText').innerText = `SKU: ${sku}`;
         document.getElementById('manQty').focus();
     }
@@ -131,28 +146,21 @@ function processScan(t) {
 
 function submitFinal(autoQty = null, rawFull = "MANUAL_ENTRY") {
     let sku = document.getElementById('manSku').value, b4 = document.getElementById('bat4').value, my = document.getElementById('batDate').value, q = autoQty || parseFloat(document.getElementById('manQty').value);
-    if(!sku || !b4 || isNaN(q)) return;
+    if(!sku || !b4 || isNaN(q)) { playTone(200, 'square', 0.3); return; }
 
     if(currentMode === 'Dispatch') q = -Math.abs(q);
     
-    const data = { 
-        skuName: sku, 
-        batch: `41-${b4}-${my}`, 
-        cases: q, 
-        destination: activeWH, 
-        unit: (currentMode === 'Breakage' ? "Bottles" : "Cases"), 
-        userName: currentUser,
-        fullQR: rawFull,
-        timestamp: Date.now() // Unique marker
-    };
+    const data = { skuName: sku, batch: `41-${b4}-${my}`, cases: q, destination: activeWH, unit: (currentMode === 'Breakage' ? "Bottles" : "Cases"), userName: currentUser, fullQR: rawFull, timestamp: Date.now() };
 
     offlineQueue.push(data);
     localStorage.setItem('wh_queue', JSON.stringify(offlineQueue));
-    
     recentLogs.unshift(data);
     if(recentLogs.length > 5) recentLogs.pop();
     localStorage.setItem('wh_logs', JSON.stringify(recentLogs));
     renderLogs();
+
+    // SUCCESS TONE
+    playTone(880, 'sine', 0.15); setTimeout(() => playTone(1046, 'sine', 0.15), 100);
 
     document.getElementById('manSku').value = ""; document.getElementById('bat4').value = ""; document.getElementById('batDate').value = ""; document.getElementById('batUnique').value = ""; document.getElementById('manQty').value = "";
     document.getElementById('statusText').innerText = `SUCCESS: ${sku}`;
@@ -173,41 +181,29 @@ function setMode(m, b) {
     else { whDiv.style.display = 'none'; activeWH = (m === 'Breakage' ? 'Breakage_WH' : (m === 'Adjust' ? 'Short_WH' : 'Raw_Scans')); }
     document.getElementById('targetLabel').innerText = `TARGET: ${activeWH.replace('_WH','')}`;
 }
-
 function setWH(wh, b) { activeWH = wh; document.querySelectorAll('.wh-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); document.getElementById('targetLabel').innerText = `TARGET: ${activeWH.replace('_WH','')}`; }
 
 function attemptLogin() {
     if(document.getElementById('userNameInput').value && document.getElementById('userPassInput').value === "123") {
         currentUser = document.getElementById('userNameInput').value;
+        audioCtx.resume(); // UNLOCK AUDIO ON LOGIN
         document.getElementById('loginOverlay').style.display = 'none';
         document.getElementById('mainApp').style.display = 'block';
         document.getElementById('displayUser').innerText = currentUser.toUpperCase();
         renderLogs();
     }
 }
-
 function forceFocus() { if(currentUser && !['INPUT','SELECT'].includes(document.activeElement.tagName)) document.getElementById('hhtCatch').focus(); }
 setInterval(forceFocus, 500);
-
-document.getElementById('hhtCatch').addEventListener('input', (e) => { 
-    if (e.target.value.length >= 24) { 
-        processScan(e.target.value); 
-        e.target.value = ""; 
-    } 
-});
+document.getElementById('hhtCatch').addEventListener('input', (e) => { if (e.target.value.length >= 24) { processScan(e.target.value); e.target.value = ""; } });
 
 async function sync() {
     if(!navigator.onLine || offlineQueue.length === 0 || isSyncing) return;
     isSyncing = true;
     try {
         await fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(offlineQueue[0]) });
-        offlineQueue.shift(); 
-        localStorage.setItem('wh_queue', JSON.stringify(offlineQueue));
-    } catch(e) {
-        console.error("Sync Error");
-    } finally {
-        isSyncing = false;
-    }
+        offlineQueue.shift(); localStorage.setItem('wh_queue', JSON.stringify(offlineQueue));
+    } catch(e) {} finally { isSyncing = false; }
 }
 setInterval(sync, 3000);
 </script>
