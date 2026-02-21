@@ -3,39 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v11.0 - LOCKED</title>
+    <title>Warehouse Pro v11.2 - TITAN LOCK</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #0a0a0a; --card: #1c1c1e; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, system-ui, sans-serif; }
         body { background: var(--bg); color: var(--text); padding: 10px; text-align: center; overflow-x: hidden; }
 
-        /* LOGIN PAGE - LOCKED AESTHETIC */
+        /* DYNAMIC WMS LOGIN (LOCKED AS REQUESTED) */
         #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999; display: flex; align-items: center; justify-content: center; background: #000; }
         #bgSlider { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; filter: brightness(0.3) blur(3px); z-index: -1; transition: 1.5s; }
-        .login-box { width: 90%; max-width: 380px; padding: 40px; background: rgba(28,28,30,0.9); backdrop-filter: blur(15px); border-radius: 30px; border: 1px solid rgba(255,255,255,0.1); }
+        .login-box { width: 90%; max-width: 380px; padding: 40px; background: rgba(28,28,30,0.9); backdrop-filter: blur(15px); border-radius: 30px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
 
-        /* UI CORE */
+        /* UI CORE COMPONENTS */
         .card { background: var(--card); padding: 18px; border-radius: 20px; margin-bottom: 12px; border: 1px solid #333; }
         input, select { width: 100%; padding: 14px; border-radius: 12px; background: #2c2c2e; color: white; border: 1px solid #444; margin: 8px 0; outline: none; font-size: 15px; }
-        .btn { border: none; border-radius: 12px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 15px; text-transform: uppercase; font-size: 16px; }
+        .btn { border: none; border-radius: 12px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 15px; text-transform: uppercase; font-size: 16px; transition: 0.2s; }
+        .btn:active { transform: scale(0.98); opacity: 0.8; }
 
-        /* NAVIGATION & MODES */
+        /* NAVIGATION MODES */
         .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
         .mode-btn { padding: 12px; border-radius: 10px; border: 1px solid #444; background: #222; color: #888; font-weight: bold; font-size: 10px; }
         .mode-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* WAREHOUSE SELECTORS */
         .wh-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; display: none; }
         .wh-btn { padding: 10px; font-size: 10px; border-radius: 8px; background: #333; color: #aaa; border: 1px solid #444; }
         .wh-btn.active { background: var(--success); color: white; }
 
-        /* TRANSFER MODULE UI */
+        /* INTERNAL TRANSFER UI */
         #transferUI { display: none; background: #2c2c2e; padding: 12px; border-radius: 15px; margin-bottom: 12px; border: 1px solid var(--primary); }
         .tf-row { display: grid; grid-template-columns: 1fr 40px 1fr; align-items: center; }
-        .tf-label { font-size: 9px; color: #888; text-transform: uppercase; }
+        .tf-label { font-size: 9px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
 
+        /* BATCH & LOGS */
         .batch-row { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 5px; }
         label { display: block; text-align: left; font-size: 10px; color: #8e8e93; margin-top: 10px; margin-left: 5px; font-weight: bold; }
         .log-container { margin-top: 10px; text-align: left; max-height: 120px; overflow-y: auto; }
-        .log-entry { background: #1c1c1e; padding: 8px; border-radius: 10px; margin-bottom: 5px; font-size: 10px; border: 1px solid #333; display: flex; justify-content: space-between; }
+        .log-entry { background: #1c1c1e; padding: 8px; border-radius: 10px; margin-bottom: 5px; font-size: 10px; border: 1px solid #333; display: flex; justify-content: space-between; align-items: center; }
         
         #hhtCatch { position: absolute; left: -9999px; opacity: 0; }
     </style>
@@ -45,10 +49,11 @@
     <div id="loginOverlay">
         <div id="bgSlider"></div>
         <div class="login-box">
-            <h2 style="color:var(--primary)">WMS TERMINAL</h2>
-            <input type="text" id="userNameInput" placeholder="User Name">
-            <input type="password" id="userPassInput" placeholder="PIN" inputmode="numeric">
-            <button class="btn" style="background: var(--primary)" onclick="attemptLogin()">ENTER WAREHOUSE</button>
+            <h2 style="color:var(--primary); margin-bottom: 5px;">WMS TERMINAL</h2>
+            <p style="font-size: 9px; color: #666; margin-bottom: 25px; letter-spacing: 2px;">SECURE LOGISTICS SESSION</p>
+            <input type="text" id="userNameInput" placeholder="Operator ID">
+            <input type="password" id="userPassInput" placeholder="Security PIN" inputmode="numeric">
+            <button class="btn" style="background: var(--primary)" onclick="attemptLogin()">Authorize Access</button>
         </div>
     </div>
 
@@ -70,27 +75,27 @@
         </div>
 
         <div id="whSelector" class="wh-grid">
-            <button id="btnFG1" class="wh-btn active" onclick="setWH('FG1_WH', this)">FG1</button>
-            <button id="btnFG2" class="wh-btn" onclick="setWH('FG2_WH', this)">FG2</button>
+            <button id="btnFG1" class="wh-btn active" onclick="setWH('FG1_WH', this)">FG1 WAREHOUSE</button>
+            <button id="btnFG2" class="wh-btn" onclick="setWH('FG2_WH', this)">FG2 WAREHOUSE</button>
         </div>
 
         <div id="transferUI">
             <div class="tf-row">
-                <div><div class="tf-label">FROM</div><div id="tfFrom" style="color:var(--danger); font-weight:bold;">FG1</div></div>
+                <div><div class="tf-label">SOURCE</div><div id="tfFrom" style="color:var(--danger); font-weight:bold; font-size: 14px;">FG1</div></div>
                 <div onclick="toggleTransferDir()" style="cursor:pointer; font-size:22px; color:var(--primary);">⇄</div>
-                <div><div class="tf-label">TO</div><div id="tfTo" style="color:var(--success); font-weight:bold;">FG2</div></div>
+                <div><div class="tf-label">TARGET</div><div id="tfTo" style="color:var(--success); font-weight:bold; font-size: 14px;">FG2</div></div>
             </div>
         </div>
 
         <div id="resultCard" class="card">
             <div id="targetLabel" style="font-size: 10px; color: var(--primary); font-weight: bold;">TARGET: RAW_SCANS</div>
-            <div id="statusText" style="font-size: 18px; font-weight: bold; color: #555;">READY</div>
+            <div id="statusText" style="font-size: 18px; font-weight: bold; color: #555;">SYSTEM READY</div>
         </div>
 
         <div id="manualSection" class="card">
             <label>PRODUCT SKU</label>
             <select id="manSku">
-                <option value="">-- SELECT --</option>
+                <option value="">-- SELECT PRODUCT --</option>
                 <option value="RSP">RSP</option><option value="BPFN">BPFN</option><option value="IBKP">IBKP</option><option value="IBKN">IBKN</option><option value="IBKQ">IBKQ</option><option value="OGQ">OGQ</option><option value="OGN">OGN</option><option value="OGP">OGP</option><option value="HPTN">HPTN</option><option value="HPTQ">HPTQ</option><option value="RSSQ">RSSQ</option><option value="RSSP">RSSP</option><option value="HPP">HPP</option><option value="BPP">BPP</option><option value="BPQ">BPQ</option><option value="BPRP">BPRP</option><option value="BPFP">BPFP</option><option value="RSSN">RSSN</option><option value="RSDQ">RSDQ</option><option value="RSDP">RSDP</option><option value="RSDN">RSDN</option><option value="BPFQ">BPFQ</option><option value="HPQ">HPQ</option><option value="HPN">HPN</option><option value="BPN">BPN</option><option value="BPRQ">BPRQ</option><option value="BPRN">BPRN</option><option value="RSQ">RSQ</option><option value="RSN">RSN</option><option value="IBP">IBP</option><option value="IBN">IBN</option><option value="IBQ">IBQ</option><option value="RSH">RSH</option><option value="EXN">EXN</option><option value="EXP">EXP</option><option value="EXQ">EXQ</option>
             </select>
             <div class="batch-row">
@@ -98,22 +103,23 @@
                 <div><label>M-YY</label><input type="number" id="batDate" placeholder="000"></div>
                 <div><label>UNIQUE</label><input type="number" id="batUnique" placeholder="00000"></div>
             </div>
-            <label id="qtyLabel">QUANTITY</label>
-            <input type="number" id="manQty" placeholder="Value">
-            <button class="btn" style="background:var(--success)" onclick="submitFinal()">SAVE RECORD</button>
+            <label id="qtyLabel">QUANTITY (CASES)</label>
+            <input type="number" id="manQty" placeholder="Enter Value">
+            <button class="btn" style="background:var(--success)" onclick="submitFinal()">COMMIT TRANSACTION</button>
         </div>
 
         <div id="logList" class="log-container"></div>
     </div>
 
 <script>
-// --- YOUR NEW UPDATED URL ---
-const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbyLEqEMoOxr7Gtl4AlECwc2e1MQg3vVOuFr4-phOopLSZmM-k1WB0RjZ7TpFGRA-svN4w/exec";
+// --- TARGET URL ---
+const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbwYvi71O1cDIVVrF0_dpPtetegWUD6cIoKxlTy5t8CCfnFz_kIre9ACLw5YcQf-MnWqFw/exec";
 
 let currentMode = 'Normal', activeWH = 'Raw_Scans', currentUser = "", lastScanStr = "", lastScanTime = 0, transferDir = "FG1_TO_FG2";
 let offlineQueue = JSON.parse(localStorage.getItem('wh_queue') || "[]"), recentLogs = JSON.parse(localStorage.getItem('wh_logs') || "[]");
 let isSyncing = false;
 
+// SOUND SYSTEM
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playTone(freq, type, duration) {
     const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
@@ -123,25 +129,20 @@ function playTone(freq, type, duration) {
     osc.start(); osc.stop(audioCtx.currentTime + duration);
 }
 
+// LOGIN BG ROTATION
 const bgImages = ["https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=1000", "https://images.unsplash.com/photo-1553413077-190dd305871c?q=80&w=1000"];
 let bgIdx = 0;
 function rotateBG() { document.getElementById('bgSlider').style.backgroundImage = `url('${bgImages[bgIdx]}')`; bgIdx = (bgIdx + 1) % bgImages.length; }
 rotateBG(); setInterval(rotateBG, 5000);
 
+// NAVIGATION LOGIC (LOCKED)
 function setMode(m, b) {
-    currentMode = m;
-    document.querySelectorAll('.mode-btn').forEach(x => x.classList.remove('active')); 
-    b.classList.add('active');
-    const whDiv = document.getElementById('whSelector');
-    const tfDiv = document.getElementById('transferUI');
-    
+    currentMode = m; document.querySelectorAll('.mode-btn').forEach(x => x.classList.remove('active')); b.classList.add('active');
+    const whDiv = document.getElementById('whSelector'); const tfDiv = document.getElementById('transferUI');
     if(m === 'Transfer') {
-        whDiv.style.display = 'none'; tfDiv.style.display = 'block';
-        activeWH = "INTERNAL_TRANSFER";
-        updateTargetLabel();
+        whDiv.style.display = 'none'; tfDiv.style.display = 'block'; activeWH = "INTERNAL_TRANSFER"; updateTargetLabel();
     } else {
-        tfDiv.style.display = 'none';
-        whDiv.style.display = (m === 'Putaway' || m === 'Dispatch') ? 'grid' : 'none';
+        tfDiv.style.display = 'none'; whDiv.style.display = (m === 'Putaway' || m === 'Dispatch') ? 'grid' : 'none';
         if(m === 'Putaway' || m === 'Dispatch') setWH('FG1_WH', document.getElementById('btnFG1'));
         else if(m === 'Breakage') activeWH = 'Breakage_WH';
         else if(m === 'Adjust') activeWH = 'Short_WH';
@@ -164,15 +165,13 @@ function updateTargetLabel() {
 }
 
 function setWH(wh, b) { 
-    activeWH = wh; 
-    document.querySelectorAll('.wh-btn').forEach(x => x.classList.remove('active')); 
-    b.classList.add('active'); 
+    activeWH = wh; document.querySelectorAll('.wh-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); 
     document.getElementById('targetLabel').innerText = `TARGET: ${activeWH.replace('_WH','')}`; 
 }
 
+// SCANNING ENGINE (LOCKED)
 function processScan(t) {
     let now = Date.now();
-    // DOUBLE ENTRY SHIELD
     if (t === lastScanStr && (now - lastScanTime < 2000)) { playTone(150, 'sawtooth', 0.2); return; }
     lastScanStr = t; lastScanTime = now;
 
@@ -183,7 +182,7 @@ function processScan(t) {
     let b4 = t.substring(15, 19);
     let lineIdx = t.indexOf("L2") !== -1 ? t.indexOf("L2") : t.indexOf("L1");
     let my = t.substring(21, lineIdx);
-    if(my.startsWith("0")) my = my.substring(1); // LOCKED ZERO-SLICE
+    if(my.startsWith("0")) my = my.substring(1); // LOCKED BATCH LOGIC
     let uni = t.substring(t.length - 5);
 
     document.getElementById('manSku').value = sku;
@@ -198,7 +197,6 @@ function processScan(t) {
 function submitFinal(autoQty = null, rawFull = "MANUAL_ENTRY") {
     let sku = document.getElementById('manSku').value, b4 = document.getElementById('bat4').value, my = document.getElementById('batDate').value, q = autoQty || parseFloat(document.getElementById('manQty').value);
     if(!sku || !b4 || isNaN(q)) { playTone(200, 'square', 0.3); return; }
-
     if(currentMode === 'Dispatch') q = -Math.abs(q);
     
     const data = { skuName: sku, batch: `41-${b4}-${my}`, cases: q, destination: (currentMode === 'Transfer') ? transferDir : activeWH, unit: (currentMode === 'Breakage' ? "Bottles" : "Cases"), userName: currentUser, fullQR: rawFull, timestamp: Date.now() };
