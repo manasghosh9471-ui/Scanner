@@ -3,32 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Warehouse Pro v10.8</title>
+    <title>WMS Terminal v13.0</title>
     <style>
         :root { --primary: #007AFF; --success: #34C759; --danger: #FF3B30; --bg: #0a0a0a; --card: #1c1c1e; --text: #FFFFFF; }
         * { margin:0; padding:0; box-sizing:border-box; font-family: -apple-system, system-ui, sans-serif; }
-        body { background: var(--bg); color: var(--text); padding: 10px; text-align: center; }
+        body { background: var(--bg); color: var(--text); padding: 10px; text-align: center; overflow-x: hidden; }
 
-        /* DYNAMIC WMS LOGIN (LOCKED) */
+        /* LOCKED: DYNAMIC INDUSTRIAL LOGIN */
         #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999; display: flex; align-items: center; justify-content: center; background: #000; }
         #bgSlider { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; filter: brightness(0.3) blur(3px); z-index: -1; transition: 1.5s; }
-        .login-box { width: 90%; max-width: 380px; padding: 40px; background: rgba(28,28,30,0.9); backdrop-filter: blur(15px); border-radius: 30px; border: 1px solid rgba(255,255,255,0.1); }
+        .login-box { width: 90%; max-width: 380px; padding: 40px; background: rgba(28,28,30,0.9); backdrop-filter: blur(15px); border-radius: 30px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
 
-        /* CORE UI */
         .card { background: var(--card); padding: 18px; border-radius: 20px; margin-bottom: 12px; border: 1px solid #333; }
         input, select { width: 100%; padding: 14px; border-radius: 12px; background: #2c2c2e; color: white; border: 1px solid #444; margin: 8px 0; outline: none; font-size: 15px; }
-        .btn { border: none; border-radius: 12px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 15px; text-transform: uppercase; font-size: 16px; }
+        .btn { border: none; border-radius: 12px; padding: 18px; font-weight: bold; color: white; cursor: pointer; width: 100%; margin-top: 15px; text-transform: uppercase; font-size: 16px; transition: 0.2s; }
+        
         .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
         .mode-btn { padding: 12px; border-radius: 10px; border: 1px solid #444; background: #222; color: #888; font-weight: bold; font-size: 10px; }
-        .mode-btn.active { background: var(--primary); color: white; }
+        .mode-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        
+        #transferUI { display: none; background: #1c1c1e; padding: 15px; border-radius: 15px; margin-bottom: 12px; border: 1px solid var(--primary); }
         .wh-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; display: none; }
         .wh-btn { padding: 10px; font-size: 10px; border-radius: 8px; background: #333; color: #aaa; border: 1px solid #444; }
         .wh-btn.active { background: var(--success); color: white; }
+
         .batch-row { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 5px; }
         label { display: block; text-align: left; font-size: 10px; color: #8e8e93; margin-top: 10px; margin-left: 5px; font-weight: bold; }
-        #hhtCatch { position: absolute; left: -9999px; opacity: 0; }
         .log-container { margin-top: 10px; text-align: left; max-height: 120px; overflow-y: auto; }
         .log-entry { background: #1c1c1e; padding: 8px; border-radius: 10px; margin-bottom: 5px; font-size: 10px; border: 1px solid #333; }
+        #hhtCatch { position: absolute; left: -9999px; opacity: 0; }
     </style>
 </head>
 <body onclick="forceFocus()">
@@ -36,10 +39,10 @@
     <div id="loginOverlay">
         <div id="bgSlider"></div>
         <div class="login-box">
-            <h2 style="color:var(--primary)">WMS LOGIN</h2>
-            <input type="text" id="userNameInput" placeholder="User Name">
-            <input type="password" id="userPassInput" placeholder="PIN" inputmode="numeric">
-            <button class="btn" style="background: var(--primary)" onclick="attemptLogin()">Enter Warehouse</button>
+            <h2 style="color:var(--primary); margin-bottom: 10px;">WMS TERMINAL</h2>
+            <input type="text" id="userNameInput" placeholder="Operator ID">
+            <input type="password" id="userPassInput" placeholder="Security PIN" inputmode="numeric">
+            <button class="btn" style="background: var(--primary)" onclick="attemptLogin()">Authorize Access</button>
         </div>
     </div>
 
@@ -56,12 +59,21 @@
             <button class="mode-btn" onclick="setMode('Putaway', this)">📥 PUTAWAY</button>
             <button class="mode-btn" onclick="setMode('Dispatch', this)">🚚 DISPATCH</button>
             <button class="mode-btn" onclick="setMode('Breakage', this)">🍾 BREAKAGE</button>
-            <button class="mode-btn" style="grid-column: span 2" onclick="setMode('Adjust', this)">⚖️ ADJUST STOCK</button>
+            <button class="mode-btn" onclick="setMode('Adjust', this)">⚖️ ADJUST</button>
+            <button class="mode-btn" onclick="setMode('Transfer', this)">🔄 TRANSFER</button>
         </div>
 
         <div id="whSelector" class="wh-grid">
             <button id="btnFG1" class="wh-btn active" onclick="setWH('FG1_WH', this)">FG1</button>
             <button id="btnFG2" class="wh-btn" onclick="setWH('FG2_WH', this)">FG2</button>
+        </div>
+
+        <div id="transferUI">
+            <div style="display: flex; justify-content: space-around; align-items: center;">
+                <div style="color:var(--danger); font-weight:bold;">FROM: <span id="tfFrom">FG1</span></div>
+                <div onclick="toggleTransferDir()" style="cursor:pointer; font-size:24px; color:var(--primary);">⇄</div>
+                <div style="color:var(--success); font-weight:bold;">TO: <span id="tfTo">FG2</span></div>
+            </div>
         </div>
 
         <div id="resultCard" class="card">
@@ -70,9 +82,8 @@
         </div>
 
         <div id="manualSection" class="card">
-            <label>PRODUCT SKU</label>
             <select id="manSku">
-                <option value="">-- SELECT --</option>
+                <option value="">-- PRODUCT --</option>
                 <option value="RSP">RSP</option><option value="BPFN">BPFN</option><option value="IBKP">IBKP</option><option value="IBKN">IBKN</option><option value="IBKQ">IBKQ</option><option value="OGQ">OGQ</option><option value="OGN">OGN</option><option value="OGP">OGP</option><option value="HPTN">HPTN</option><option value="HPTQ">HPTQ</option><option value="RSSQ">RSSQ</option><option value="RSSP">RSSP</option><option value="HPP">HPP</option><option value="BPP">BPP</option><option value="BPQ">BPQ</option><option value="BPRP">BPRP</option><option value="BPFP">BPFP</option><option value="RSSN">RSSN</option><option value="RSDQ">RSDQ</option><option value="RSDP">RSDP</option><option value="RSDN">RSDN</option><option value="BPFQ">BPFQ</option><option value="HPQ">HPQ</option><option value="HPN">HPN</option><option value="BPN">BPN</option><option value="BPRQ">BPRQ</option><option value="BPRN">BPRN</option><option value="RSQ">RSQ</option><option value="RSN">RSN</option><option value="IBP">IBP</option><option value="IBN">IBN</option><option value="IBQ">IBQ</option><option value="RSH">RSH</option><option value="EXN">EXN</option><option value="EXP">EXP</option><option value="EXQ">EXQ</option>
             </select>
             <div class="batch-row">
@@ -80,8 +91,7 @@
                 <div><label>M-YY</label><input type="number" id="batDate" placeholder="000"></div>
                 <div><label>UNIQUE</label><input type="number" id="batUnique" placeholder="00000"></div>
             </div>
-            <label id="qtyLabel">QUANTITY</label>
-            <input type="number" id="manQty" placeholder="Value">
+            <input type="number" id="manQty" placeholder="Quantity">
             <button class="btn" style="background:var(--success)" onclick="submitFinal()">SAVE RECORD</button>
         </div>
 
@@ -89,46 +99,72 @@
     </div>
 
 <script>
+// WORKING v10.8 URL
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbzasDx-xkEiD8OsZ7Wy-oelFQafO6Pcq65D0mM_sN-FB5ABQ3ZM2ZhWt3MxwTFsjaoc1A/exec";
-let currentMode = 'Normal', activeWH = 'Raw_Scans', currentUser = "", lastScanStr = "", lastScanTime = 0;
+
+let currentMode = 'Normal', activeWH = 'Raw_Scans', currentUser = "", lastScanStr = "", lastScanTime = 0, transferDir = "FG1_TO_FG2";
 let offlineQueue = JSON.parse(localStorage.getItem('wh_queue') || "[]");
 let recentLogs = JSON.parse(localStorage.getItem('wh_logs') || "[]");
 let isSyncing = false;
 
-// SOUND ENGINE
+// SOUNDS
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playTone(freq, type, duration) {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
     osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
     gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
     osc.connect(gain); gain.connect(audioCtx.destination);
     osc.start(); osc.stop(audioCtx.currentTime + duration);
 }
 
+// BG IMAGES (LOCKED)
 const bgImages = ["https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=1000", "https://images.unsplash.com/photo-1553413077-190dd305871c?q=80&w=1000"];
 let bgIdx = 0;
 function rotateBG() { document.getElementById('bgSlider').style.backgroundImage = `url('${bgImages[bgIdx]}')`; bgIdx = (bgIdx + 1) % bgImages.length; }
 rotateBG(); setInterval(rotateBG, 5000);
 
+// MODES
+function setMode(m, b) {
+    currentMode = m; document.querySelectorAll('.mode-btn').forEach(x => x.classList.remove('active')); b.classList.add('active');
+    const whDiv = document.getElementById('whSelector'); const tfDiv = document.getElementById('transferUI');
+    
+    if(m === 'Transfer') { 
+        whDiv.style.display = 'none'; tfDiv.style.display = 'block'; activeWH = transferDir; 
+    } else if(m === 'Normal') {
+        whDiv.style.display = 'none'; tfDiv.style.display = 'none'; activeWH = 'Raw_Scans';
+    } else {
+        tfDiv.style.display = 'none';
+        whDiv.style.display = (m === 'Putaway' || m === 'Dispatch') ? 'grid' : 'none';
+        if(m === 'Putaway' || m === 'Dispatch') setWH('FG1_WH', document.getElementById('btnFG1'));
+        else activeWH = (m === 'Breakage' ? 'Breakage_WH' : 'Short_WH');
+    }
+    document.getElementById('targetLabel').innerText = `TARGET: ${activeWH.replace('_WH','')}`;
+}
+
+function toggleTransferDir() {
+    transferDir = (transferDir === "FG1_TO_FG2") ? "FG2_TO_FG1" : "FG1_TO_FG2";
+    document.getElementById('tfFrom').innerText = transferDir.split('_')[0];
+    document.getElementById('tfTo').innerText = transferDir.split('_')[2];
+    activeWH = transferDir;
+    document.getElementById('targetLabel').innerText = `TARGET: ${activeWH}`;
+    playTone(440, 'sine', 0.1);
+}
+
+function setWH(wh, b) { activeWH = wh; document.querySelectorAll('.wh-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); document.getElementById('targetLabel').innerText = `TARGET: ${activeWH.replace('_WH','')}`; }
+
+// SPLICING & PROCESSING (LOCKED REFERENCE)
 function processScan(t) {
     let now = Date.now();
-    if (t === lastScanStr && (now - lastScanTime < 2000)) {
-        playTone(150, 'sawtooth', 0.2); // DUPLICATE ALERT
-        return;
-    }
-    lastScanStr = t;
-    lastScanTime = now;
+    if (t === lastScanStr && (now - lastScanTime < 2000)) { playTone(150, 'sawtooth', 0.2); return; }
+    lastScanStr = t; lastScanTime = now;
 
     let skuM = {"1160W0866GPP":"RSP","1160W1582GNN":"BPFN","1160W0743GPP":"IBKP","1160W0743GNN":"IBKN","1160W0743GQQ":"IBKQ","1160W0839GQQ":"OGQ","1160W0839GNN":"OGN","1160W0839GPP":"OGP","1160W1092GNN":"HPTN","1160W1092GQQ":"HPTQ","1160W0871GQQ":"RSSQ","1160W0871GPP":"RSSP","1160W0467GPP":"HPP","1160W1465GPP":"BPP","1160W1465GQQ":"BPQ","1160W0868GPP":"BPRP","1160W1582GPP":"BPFP","1160W0871GNN":"RSSN","1160W1546GQQ":"RSDQ","1160W1546GPP":"RSDP","1160W1546GNN":"RSDN","1160W1684GQQ":"RSDQ","1160W1684GPP":"RSDP","1160W1684GNN":"RSDN","1160W1736GQQ":"BPFQ","1160W1736GPP":"BPFP","1160W1736GNN":"BPFN","1160W0467GQQ":"HPQ","1160W0467GNN":"HPN","1160W1465GNN":"BPN","1160W0868GQQ":"BPRQ","1160W0868GNN":"BPRN","1160W0866GQQ":"RSQ","1160W0866GNN":"RSN","1160W0746GPP":"IBP","1160W0746GNN":"IBN","1160W0746GQQ":"IBQ","1160W1582GQQ":"BPFQ","1160W0866GHE":"RSH","1160W1799GNN":"EXN","1160W1799GPP":"EXP","1160W1799GQQ":"EXQ"};
-    
     let sku = skuM[t.substring(3, 15)] || "UNK";
-    if(sku === "UNK") playTone(200, 'square', 0.5); // ERROR TONE
-
+    
     let b4 = t.substring(15, 19);
     let lineIdx = t.indexOf("L2") !== -1 ? t.indexOf("L2") : t.indexOf("L1");
     let my = t.substring(21, lineIdx);
-    if(my.startsWith("0")) my = my.substring(1);
+    if(my.startsWith("0")) my = my.substring(1); // ZERO SLICE
     let uni = t.substring(t.length - 5);
 
     document.getElementById('manSku').value = sku;
@@ -137,11 +173,7 @@ function processScan(t) {
     document.getElementById('batUnique').value = uni;
 
     if (currentMode === 'Normal') submitFinal(1, t);
-    else {
-        playTone(600, 'sine', 0.1); // SOFT SCAN CONFIRM
-        document.getElementById('statusText').innerText = `SKU: ${sku}`;
-        document.getElementById('manQty').focus();
-    }
+    else { playTone(600, 'sine', 0.1); document.getElementById('statusText').innerText = `SKU: ${sku}`; document.getElementById('manQty').focus(); }
 }
 
 function submitFinal(autoQty = null, rawFull = "MANUAL_ENTRY") {
@@ -150,62 +182,56 @@ function submitFinal(autoQty = null, rawFull = "MANUAL_ENTRY") {
 
     if(currentMode === 'Dispatch') q = -Math.abs(q);
     
-    const data = { skuName: sku, batch: `41-${b4}-${my}`, cases: q, destination: activeWH, unit: (currentMode === 'Breakage' ? "Bottles" : "Cases"), userName: currentUser, fullQR: rawFull, timestamp: Date.now() };
+    const data = { skuName: sku, batch: `41-${b4}-${my}`, cases: q, destination: activeWH, userName: currentUser, timestamp: Date.now() };
 
     offlineQueue.push(data);
     localStorage.setItem('wh_queue', JSON.stringify(offlineQueue));
-    recentLogs.unshift(data);
-    if(recentLogs.length > 5) recentLogs.pop();
-    localStorage.setItem('wh_logs', JSON.stringify(recentLogs));
+    recentLogs.unshift(data); if(recentLogs.length > 5) recentLogs.pop();
     renderLogs();
 
-    // SUCCESS TONE
-    playTone(880, 'sine', 0.15); setTimeout(() => playTone(1046, 'sine', 0.15), 100);
-
-    document.getElementById('manSku').value = ""; document.getElementById('bat4').value = ""; document.getElementById('batDate').value = ""; document.getElementById('batUnique').value = ""; document.getElementById('manQty').value = "";
+    playTone(880, 'sine', 0.15);
     document.getElementById('statusText').innerText = `SUCCESS: ${sku}`;
 }
 
 function renderLogs() {
     document.getElementById('logList').innerHTML = recentLogs.map(l => `
         <div class="log-entry" style="border-left: 3px solid ${l.cases < 0 ? 'var(--danger)' : 'var(--success)'}">
-            <b>${l.skuName}</b> | ${l.batch} | Qty: ${l.cases}
+            <b>${l.skuName}</b> | ${l.batch} | Qty: ${l.cases} | → ${l.destination.replace('_WH','')}
         </div>
     `).join('');
 }
 
-function setMode(m, b) {
-    currentMode = m; document.querySelectorAll('.mode-btn').forEach(x => x.classList.remove('active')); b.classList.add('active');
-    const whDiv = document.getElementById('whSelector');
-    if(m === 'Putaway' || m === 'Dispatch') { whDiv.style.display = 'grid'; setWH('FG1_WH', document.getElementById('btnFG1')); }
-    else { whDiv.style.display = 'none'; activeWH = (m === 'Breakage' ? 'Breakage_WH' : (m === 'Adjust' ? 'Short_WH' : 'Raw_Scans')); }
-    document.getElementById('targetLabel').innerText = `TARGET: ${activeWH.replace('_WH','')}`;
-}
-function setWH(wh, b) { activeWH = wh; document.querySelectorAll('.wh-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); document.getElementById('targetLabel').innerText = `TARGET: ${activeWH.replace('_WH','')}`; }
-
 function attemptLogin() {
     if(document.getElementById('userNameInput').value && document.getElementById('userPassInput').value === "123") {
         currentUser = document.getElementById('userNameInput').value;
-        audioCtx.resume(); // UNLOCK AUDIO ON LOGIN
+        audioCtx.resume(); 
         document.getElementById('loginOverlay').style.display = 'none';
         document.getElementById('mainApp').style.display = 'block';
         document.getElementById('displayUser').innerText = currentUser.toUpperCase();
         renderLogs();
     }
 }
-function forceFocus() { if(currentUser && !['INPUT','SELECT'].includes(document.activeElement.tagName)) document.getElementById('hhtCatch').focus(); }
-setInterval(forceFocus, 500);
-document.getElementById('hhtCatch').addEventListener('input', (e) => { if (e.target.value.length >= 24) { processScan(e.target.value); e.target.value = ""; } });
 
+// v10.8 SYNC ENGINE
 async function sync() {
     if(!navigator.onLine || offlineQueue.length === 0 || isSyncing) return;
     isSyncing = true;
     try {
         await fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(offlineQueue[0]) });
-        offlineQueue.shift(); localStorage.setItem('wh_queue', JSON.stringify(offlineQueue));
-    } catch(e) {} finally { isSyncing = false; }
+        offlineQueue.shift(); 
+        localStorage.setItem('wh_queue', JSON.stringify(offlineQueue));
+        document.getElementById('connDot').style.background = 'var(--success)';
+        document.getElementById('connText').innerText = "ONLINE";
+    } catch(e) {
+        document.getElementById('connDot').style.background = 'var(--danger)';
+        document.getElementById('connText').innerText = "OFFLINE";
+    } finally { isSyncing = false; }
 }
+
+function forceFocus() { if(currentUser && !['INPUT','SELECT'].includes(document.activeElement.tagName)) document.getElementById('hhtCatch').focus(); }
+setInterval(forceFocus, 500);
 setInterval(sync, 3000);
+document.getElementById('hhtCatch').addEventListener('input', (e) => { if (e.target.value.length >= 24) { processScan(e.target.value); e.target.value = ""; } });
 </script>
 </body>
 </html>
